@@ -1,0 +1,49 @@
+name: InterServer marketing staging upload
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: interserver-marketing-staging
+  cancel-in-progress: false
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check isolated staging target
+        env:
+          STAGING_RELEASE_DIR: ${{ vars.STAGING_RELEASE_DIR }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          # Refuse production webroot, generic directories and unexpected targets.
+          [[ "$STAGING_RELEASE_DIR" =~ ^/home/[A-Za-z0-9_-]+/.*/titanzero-marketing-staging$ ]]
+          test -s index.html
+          if find . -path ./.git -prune -o -type f \( -iname '*.php' -o -name '.htaccess' \) -print | grep -q .; then
+            echo 'Executable server file detected; refusing staged upload' >&2
+            exit 1
+          fi
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/known_hosts ~/.ssh/id_ed25519
+          test -s ~/.ssh/known_hosts
+          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" 'echo "Authenticated staging deploy account"'
+          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$STAGING_RELEASE_DIR/$GITHUB_SHA'"
+          rsync -az --exclude '.git/' --exclude '.github/' --exclude 'docs/' --exclude 'pages/' \
+            --exclude 'scripts/' --exclude 'node_modules/' --exclude '*.md' \
+            -e 'ssh -o StrictHostKeyChecking=yes' ./ \
+            "$DEPLOY_USER@$DEPLOY_HOST:$STAGING_RELEASE_DIR/$GITHUB_SHA/"
+          echo "Staged commit $GITHUB_SHA (no production webroot changed)."
