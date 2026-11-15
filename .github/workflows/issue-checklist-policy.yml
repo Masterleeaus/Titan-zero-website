@@ -1,7 +1,7 @@
 name: Enforce issue task checklists
 on:
   issues:
-    types: [opened, edited, reopened, closed]
+    types: [opened, edited, reopened]
   push:
     paths: ['.github/workflows/issue-checklist-policy.yml']
   workflow_dispatch:
