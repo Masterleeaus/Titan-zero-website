@@ -1,0 +1,25 @@
+name: Business tools calculation regression
+on:
+  pull_request:
+    paths:
+      - 'assets/tools.js'
+      - 'scripts/test-break-even.mjs'
+      - '.github/workflows/business-tools-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'assets/tools.js'
+      - 'scripts/test-break-even.mjs'
+      - '.github/workflows/business-tools-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check assets/tools.js
+      - run: node scripts/test-break-even.mjs
