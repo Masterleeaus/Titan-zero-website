@@ -1,0 +1,24 @@
+name: Business tools financial regression
+on:
+  pull_request:
+    paths:
+      - 'assets/tools.js'
+      - 'tests/break-even.test.mjs'
+      - '.github/workflows/tools-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'assets/tools.js'
+      - 'tests/break-even.test.mjs'
+permissions:
+  contents: read
+jobs:
+  break-even:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check assets/tools.js
+      - run: node --test tests/break-even.test.mjs
