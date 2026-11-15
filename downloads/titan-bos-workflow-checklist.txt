@@ -1,0 +1,43 @@
+TITAN BOS — YOUR BUSINESS WORKFLOW CHECKLIST
+By Titan Zero | Business Operating System
+
+Use this sheet to prepare a useful setup conversation.
+You do not need all five apps to begin.
+
+1. START WITH ONE REAL CUSTOMER JOURNEY
+What service is the customer asking for?
+Where does their enquiry arrive?
+Who answers it, and who owns the next step?
+What information is copied or asked for twice?
+
+2. BUILD — DEFINE THE OPPORTUNITY
+List the service, service area, operating hours and scope.
+Note pricing inputs and booking constraints.
+Describe the customers and markets you want to reach.
+Identify what must be handed to the front office.
+
+3. SUPERCHARGED AT WORK — KEEP THE CUSTOMER CONTEXT
+Name the person responsible for enquiries and follow-up.
+List the details needed before quoting or booking.
+Identify where accepted scope and customer instructions are recorded.
+Define when a request is ready for SortedAt.Work.
+
+4. SORTED AT WORK — MAKE DELIVERY CLEAR
+List the planning, assignment and on-site steps.
+Identify the checklist, evidence and completion information needed.
+Decide who handles changes, exceptions and quality review.
+
+5. SET THE BOUNDARIES
+Which tasks should be draft-only?
+Which need human approval before execution?
+What is allowed to run automatically, and within which limits?
+Who handles exceptions? What records must be kept?
+
+7. CHOOSE YOUR STARTING POINT
+Start with the handoff that creates the most repeated work.
+Choose the relevant app and operating level; confirm availability.
+App subscriptions, provider usage, taxes and setup services are separate considerations.
+
+Discuss your workflow: support@titanzero.io
+Capabilities vary by service vertical, plan, configuration, device and release.
+This checklist is a planning aid, not a guarantee of feature availability.

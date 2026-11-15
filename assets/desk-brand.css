@@ -1,0 +1,66 @@
+/* SuperchargedAt.Work brand extension v1. Loaded only by pages/app-desk.html. */
+.page-desk{
+  --sc-charcoal:#111216;
+  --sc-deep:#0D0E12;
+  --sc-graphite:#242428;
+  --sc-red:#F32238;
+  --sc-white:#F7F7F8;
+  --sc-slate:#85878B;
+  --accent:var(--sc-red);
+}
+.page-desk .desk-bg-red{
+  background-image:linear-gradient(rgba(13,14,18,.82),rgba(13,14,18,.92)),url("/assets/desk-bg-red-horizon.webp");
+  background-size:cover;
+  background-position:center;
+}
+.page-desk .desk-bg-graphite{
+  background-image:linear-gradient(rgba(13,14,18,.86),rgba(13,14,18,.94)),url("/assets/desk-bg-graphite-slashes.webp");
+  background-size:cover;
+  background-position:center;
+}
+.page-desk .feature-editorial .feature-icon{
+  display:block;
+  width:64px;
+  height:64px;
+  font-size:0;
+}
+.page-desk .feature-editorial .feature-icon img{
+  display:block;
+  width:64px;
+  height:64px;
+}
+.page-desk .desk-card-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+}
+.page-desk .desk-card-strip img{
+  display:block;
+  width:100%;
+  height:auto;
+  border-radius:8px;
+}
+
+.page-desk .capability-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px;
+  margin-top:32px;
+}
+.page-desk .capability-grid article{
+  padding:20px;
+  border:1px solid rgba(247,247,248,.12);
+  border-radius:8px;
+  background:rgba(13,14,18,.6);
+}
+.page-desk .capability-grid h3{
+  margin:0 0 12px;
+  color:var(--sc-red);
+}
+.page-desk .capability-grid ul{
+  margin:0;
+  padding-left:18px;
+}
+.page-desk .capability-grid li{
+  margin-bottom:8px;
+}

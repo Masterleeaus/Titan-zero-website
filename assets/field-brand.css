@@ -1,0 +1,41 @@
+/* SortedAt.Work brand extension v2 (colour-verified). Loaded only by pages/app-field.html. */
+.page-field{
+  --sw-orange:#FF791F;
+  --sw-navy:#0B2345;
+  --sw-white:#FFFFFF;
+  --sw-charcoal:#101923;
+  --accent:var(--sw-orange);
+}
+.page-field .field-bg-contour{
+  background-image:linear-gradient(rgba(11,35,69,.86),rgba(11,35,69,.94)),url("/assets/field-bg-contour.webp");
+  background-size:cover;
+  background-position:center;
+}
+.page-field .field-bg-radial{
+  background-image:linear-gradient(rgba(16,25,35,.86),rgba(16,25,35,.94)),url("/assets/field-bg-radial.webp");
+  background-size:cover;
+  background-position:center;
+}
+.page-field .feature-editorial .feature-icon{
+  display:block;
+  width:64px;
+  height:64px;
+  font-size:0;
+}
+.page-field .feature-editorial .feature-icon img{
+  display:block;
+  width:64px;
+  height:64px;
+}
+
+.page-field .field-card-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:16px;
+}
+.page-field .field-card-strip img{
+  display:block;
+  width:100%;
+  height:auto;
+  border-radius:8px;
+}

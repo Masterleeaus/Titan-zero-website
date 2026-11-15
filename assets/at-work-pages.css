@@ -1,0 +1,15 @@
+
+/* At.Work brand layouts for ScheduledAt.Work, SkilledAt.Work, SyncedAt.Work and SoloAt.Work. Loaded by those pages. */
+.page-build .feature-editorial .feature-icon, .page-skilled .feature-editorial .feature-icon, .page-synced .feature-editorial .feature-icon{display:block;width:64px;height:64px;font-size:0}
+.page-build .feature-editorial .feature-icon img, .page-skilled .feature-editorial .feature-icon img, .page-synced .feature-editorial .feature-icon img{display:block;width:64px;height:64px}
+.brand-card-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.brand-card-strip img{display:block;width:100%;height:auto;border-radius:8px}
+.page-build .brand-bg{background-image:linear-gradient(rgba(10,10,18,.88),rgba(10,10,18,.95)),url("/assets/build-bg.webp");background-size:cover;background-position:center}
+.page-skilled .brand-bg{background-image:linear-gradient(rgba(16,14,8,.88),rgba(16,14,8,.95)),url("/assets/skill-bg.webp");background-size:cover;background-position:center}
+.page-synced .brand-bg{background-image:linear-gradient(rgba(6,18,22,.88),rgba(6,18,22,.95)),url("/assets/sync-bg.webp");background-size:cover;background-position:center}
+
+.page-skilled .app-hero-emblem, .page-synced .app-hero-emblem{display:block;width:72px;height:61px;object-fit:contain;margin:0 0 18px}
+
+.page-solo .feature-editorial .feature-icon{display:block;width:64px;height:64px;font-size:0}
+.page-solo .feature-editorial .feature-icon img{display:block;width:64px;height:64px}
+.page-solo .brand-bg{background-image:linear-gradient(rgba(4,14,36,.88),rgba(4,14,36,.95)),url("/assets/solo-bg.webp");background-size:cover;background-position:center}
