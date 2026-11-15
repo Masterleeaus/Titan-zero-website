@@ -13,3 +13,11 @@
 .page-solo .feature-editorial .feature-icon{display:block;width:64px;height:64px;font-size:0}
 .page-solo .feature-editorial .feature-icon img{display:block;width:64px;height:64px}
 .page-solo .brand-bg{background-image:linear-gradient(rgba(4,14,36,.88),rgba(4,14,36,.95)),url("/assets/solo-bg.webp");background-size:cover;background-position:center}
+
+/* Front Desk pages: responsive grids */
+.fd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px 60px;margin-top:40px}
+.fd-family{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.fd-family a{min-width:0}
+.fd-family a[aria-current]{border-color:#4a6fa3!important}
+.fd-steps{margin-top:28px}
+@media (max-width:860px){.fd-grid,.fd-family{grid-template-columns:1fr}}
