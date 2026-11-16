@@ -27,4 +27,5 @@ jobs:
         with:
           node-version: '22'
       - run: node --check assets/tools.js
+      - run: node --check assets/site.js
       - run: node --test tests/break-even.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
