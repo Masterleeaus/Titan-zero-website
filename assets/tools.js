@@ -48,18 +48,53 @@ function currentIndustry(){return industryById[profile.activeVertical]||industry
 function getAssumptions(){return profile.assumptions[profile.activeVertical]||(profile.assumptions[profile.activeVertical]={});}
 function defaultFor(key,fallback){const stored=Number(getAssumptions()[key]);if(Number.isFinite(stored))return stored;const tuned=Number(currentIndustry().defaults[key]);return Number.isFinite(tuned)?tuned:fallback;}
 function createLink(text,href,className='text-link'){const a=document.createElement('a');a.className=className;a.href=href;a.textContent=text;return a;}
-function toolContextUrl(route,context){
+function toolContextUrl(route){
 const url=new URL(pageUrl(route));
-url.searchParams.set('tool_context',JSON.stringify(context));
+// Never place business information, numeric assumptions or quote details in the URL.
+url.searchParams.delete('tool_context');
 return url.href;
+}
+function safeHandoffSummary(context){
+// Only copy an explicitly requested, bounded calculation summary. Never include
+// the business, service, customer, staff or free-text quote fields.
+const field=(name)=>escContext(context?.[name]).replace(/[\r\n\t]+/g,' ');
+return [
+'Titan Zero business tool result',
+'Tool: '+field('tool'),
+'Industry: '+field('vertical'),
+'Result: '+field('result'),
+'Calculation: '+field('calculation')
+].join('\n');
 }
 function addPrintButton(parent,label='Print / save PDF'){const b=document.createElement('button');b.type='button';b.className='button button-secondary';b.textContent=label;b.addEventListener('click',()=>window.print());parent.append(b);}
 function addHandoffButtons(parent,context){
 const row=document.createElement('div');row.className='button-row result-actions';
-row.append(createLink('Take result to Titan pricing',toolContextUrl('pricing/',context)));
-row.append(createLink('Prepare a support enquiry',toolContextUrl('support/',context),'button button-secondary'));
+row.append(createLink('Explore Titan pricing',toolContextUrl('pricing/')));
+row.append(createLink('Open support (no data sent)',toolContextUrl('support/'),'button button-secondary'));
+const copy=document.createElement('button');copy.type='button';copy.className='button button-secondary';
+copy.textContent='Copy calculation for manual sharing';
+const status=textNode('p','These links do not send your business information or calculation. Copying is optional; review numerical figures before sharing them.','fine-print handoff-note');
+status.setAttribute('role','status');
+let fallback;
+copy.addEventListener('click',async()=>{
+const summary=safeHandoffSummary(context);
+try{
+if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function')throw new Error('Clipboard unavailable');
+await navigator.clipboard.writeText(summary);
+status.textContent='Calculation copied locally. Review before pasting it into any external form.';
+}catch(_){
+if(!fallback){
+fallback=document.createElement('textarea');fallback.readOnly=true;fallback.rows=5;
+fallback.setAttribute('aria-label','Calculation summary for manual copying');
+parent.append(fallback);
+}
+fallback.value=summary;fallback.focus();fallback.select();
+status.textContent='Automatic copying is unavailable. Select and copy the summary below manually.';
+}
+});
+row.append(copy);
 addPrintButton(row);
-parent.append(row,textNode('p','The optional handoff includes this result in the destination URL for prefill. It may remain in browser history or ordinary hosting logs; leave out customer or confidential details.','fine-print handoff-note'));
+parent.append(row,status);
 }
 function textNode(tag,text,className){const el=document.createElement(tag);if(className)el.className=className;el.textContent=text;return el;}
 function setupContext(root){
