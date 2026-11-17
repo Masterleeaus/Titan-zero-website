@@ -47,3 +47,27 @@ This repository is a static site. It has no server-side code. The live host must
 
 - No analytics or tracking scripts are included in this repository.
 - Do not add tracking until consent handling is in place. The planned funnel events and UTM conventions are tracked in the GitHub issues, not implemented here.
+
+## Calculator release checks
+
+The calculator logic is in `assets/tools-engine.js` (pure functions, integer cents for money). `assets/tools.js` only wires the pages. Every calculator page loads `tools-engine.js` before `tools.js`.
+
+Reproducible checks (run from the repository root; Node 22, no install needed):
+
+```bash
+node --check assets/tools-engine.js && node --check assets/tools.js && node --check assets/site.js
+node --test tests/break-even.test.mjs tests/tools-engine.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
+node scripts/test-break-even.mjs
+node scripts/check-tool-parity.mjs
+```
+
+Block a release if any command fails. The parity check fails when a `tools/<slug>/index.html` copy differs from `pages/tool-<slug>.html`, or when a calculator page loads `tools.js` before the engine.
+
+Manual QA before publishing a calculator change (desktop and phone width):
+
+1. Enter a blank, a negative, and a three-decimal money value; each shows a message and no result.
+2. Break-even with price equal to variable cost shows "Not achievable", not 0 jobs.
+3. Results move focus to the result heading; the copy button does not send data anywhere.
+4. The page prints without the input fields being cut off.
+
+Rollback: calculator changes are commits on `main`. Restore the previous commit's `assets/tools.js`, `assets/tools-engine.js` and the matching HTML, then confirm one calculator page loads and calculates.

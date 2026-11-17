@@ -3,19 +3,23 @@ on:
   pull_request:
     paths:
       - 'assets/tools.js'
-      - 'tests/break-even.test.mjs'
-      - 'tests/tools-handoff-privacy.test.mjs'
-      - 'tests/tools-legacy-url-privacy.test.mjs'
+      - 'assets/tools-engine.js'
       - 'assets/site.js'
+      - 'pages/tool-*.html'
+      - 'tools/**'
+      - 'scripts/check-tool-parity.mjs'
+      - 'tests/**'
       - '.github/workflows/tools-regression.yml'
   push:
     branches: [main]
     paths:
       - 'assets/tools.js'
-      - 'tests/break-even.test.mjs'
-      - 'tests/tools-handoff-privacy.test.mjs'
-      - 'tests/tools-legacy-url-privacy.test.mjs'
+      - 'assets/tools-engine.js'
       - 'assets/site.js'
+      - 'pages/tool-*.html'
+      - 'tools/**'
+      - 'scripts/check-tool-parity.mjs'
+      - 'tests/**'
 permissions:
   contents: read
 jobs:
@@ -26,6 +30,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node --check assets/tools-engine.js
       - run: node --check assets/tools.js
       - run: node --check assets/site.js
-      - run: node --test tests/break-even.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
+      - run: node --test tests/break-even.test.mjs tests/tools-engine.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
+      - run: node scripts/test-break-even.mjs
+      - run: node scripts/check-tool-parity.mjs
