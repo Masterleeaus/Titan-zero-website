@@ -379,33 +379,22 @@ const pageUrl=(path)=>new URL(path,root).href;
 const hasApp=(value)=>Object.prototype.hasOwnProperty.call(apps,value);
 const money=(value)=>'A$'+new Intl.NumberFormat('en-AU',{maximumFractionDigits:0}).format(value);
 const query=new URLSearchParams(documentUrl.search);
-function readToolContext(){
-const serialized=query.get('tool_context');
-if(!serialized||serialized.length>4096)return null;
+// Compatibility defence: previously shared business-tool links embedded sensitive
+// context in their query. Never consume, render, forward or submit that context.
+// Replace the *current* browser-history entry to avoid continuing propagation.
+// Previously generated HTTP logs/referrer entries cannot be erased client-side.
+if(query.has('tool_context')){
+query.delete('tool_context');
 try{
-const raw=JSON.parse(serialized);
-if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
-return{tool:String(raw.tool||'').slice(0,100),vertical:String(raw.vertical||'').slice(0,100),business:String(raw.business||'').slice(0,120),service:String(raw.service||'').slice(0,120),result:String(raw.result||'').slice(0,160),calculation:String(raw.calculation||'').slice(0,300)};
-}catch(_){return null;}
+const clean=new URL(documentUrl.href);clean.searchParams.delete('tool_context');
+window.history.replaceState(window.history.state,'',clean.pathname+clean.search+clean.hash);
+}catch(_){/* A restricted history API must never block normal pricing/support usage. */}
 }
 document.documentElement.classList.add('js');
 document.querySelectorAll('[data-js-control]').forEach((element)=>{element.hidden=false;});
 document.querySelectorAll('[data-current-year]').forEach((element)=>{
 element.textContent=String(new Date().getFullYear());
 });
-const pricingContextPanel=document.querySelector('[data-pricing-tool-context]');
-const pricingToolContext=readToolContext();
-if(pricingContextPanel&&pricingToolContext&&pricingToolContext.tool&&pricingToolContext.result){
-pricingContextPanel.querySelector('[data-pricing-context-title]').textContent=pricingToolContext.tool+(pricingToolContext.vertical?' · '+pricingToolContext.vertical:'');
-pricingContextPanel.querySelector('[data-pricing-context-result]').textContent=pricingToolContext.result;
-const details=pricingContextPanel.querySelector('[data-pricing-context-details]');
-for(const[label,value]of[['Business',pricingToolContext.business],['Service',pricingToolContext.service],['Calculation',pricingToolContext.calculation]]){
-if(!value)continue;const term=document.createElement('dt'),description=document.createElement('dd');term.textContent=label;description.textContent=value;details.append(term,description);
-}
-const supportLink=pricingContextPanel.querySelector('[data-pricing-context-support]');
-const supportUrl=new URL(pageUrl('support/'));supportUrl.searchParams.set('tool_context',JSON.stringify(pricingToolContext));supportLink.href=supportUrl.href;
-pricingContextPanel.hidden=false;
-}
 const navToggle=document.querySelector('[data-nav-toggle]');
 const navigation=document.getElementById('site-navigation');
 const disclosures=[...document.querySelectorAll('.nav-disclosure')];
@@ -508,12 +497,6 @@ const appSelect=enquiry.querySelector('[name="app"]');
 const levelSelect=enquiry.querySelector('[name="level"]');
 const context=[];
 let calculatorState=null;
-const toolContext=readToolContext();
-if(toolContext){
-const businessField=enquiry.elements.namedItem('business');if(businessField&&!businessField.value&&toolContext.business)businessField.value=toolContext.business;
-const messageField=enquiry.elements.namedItem('message');if(messageField){const details=[toolContext.tool&&('Tool: '+toolContext.tool),toolContext.vertical&&('Industry: '+toolContext.vertical),toolContext.service&&('Service: '+toolContext.service),toolContext.result&&('Result: '+toolContext.result),toolContext.calculation&&('Calculation: '+toolContext.calculation)].filter(Boolean);messageField.value='I used the Titan BOS business tools and would like to discuss this result.\n\n'+details.join('\n');}
-context.push(['Business tool result',toolContext.tool,toolContext.vertical,toolContext.result].filter(Boolean).join(' · '));
-}
 if(query.has('setup')&&window.TITAN_QUOTE_ENGINE){
 try{
 const engine=window.TITAN_QUOTE_ENGINE;
