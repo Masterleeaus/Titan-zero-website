@@ -24,8 +24,9 @@
 <link rel="stylesheet" href="/assets/styles.css?v=a3efc8edfd97">
 <script defer src="/assets/site-data.js?v=a3efc8edfd97"></script>
 <script defer src="/assets/site.js?v=a3efc8edfd97"></script>
+<script defer src="/assets/tool-calcs.js?v=a3efc8edfd97"></script>
 <script defer src="/assets/tools-engine.js?v=tools43-20261118"></script>
-<script defer src="/assets/tools.js?v=tools43-20261118"></script>
+<script defer src="/assets/tools.js?v=a3efc8edfd97"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://titanzero.io/#organization","name":"Titan Zero","url":"https://titanzero.io/","logo":{"@type":"ImageObject","url":"https://titanzero.io/assets/zero-logo-on-light.webp","width":650,"height":218}},{"@type":"WebSite","@id":"https://titanzero.io/#website","name":"Titan BOS by Titan Zero","url":"https://titanzero.io/","publisher":{"@id":"https://titanzero.io/#organization"},"inLanguage":"en-AU"},{"@type":"SoftwareApplication","@id":"https://titanzero.io/tools/job-cost-sheet/#page","name":"Service job-cost sheet | Titan Zero Tools","description":"Estimate job labour, materials, travel and overhead, then compare the total cost with the entered price and target margin.","url":"https://titanzero.io/tools/job-cost-sheet/","inLanguage":"en-AU","isPartOf":{"@id":"https://titanzero.io/#website"},"applicationCategory":"BusinessApplication","operatingSystem":"Any","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"AUD"},"browserRequirements":"A modern browser with JavaScript enabled","image":{"@type":"ImageObject","url":"https://titanzero.io/assets/zero-social.webp","width":1200,"height":1200}}]}</script>
 </head>
 <body class="page-tool page-job-cost-sheet" data-site-root="/">
@@ -76,17 +77,23 @@
       <div class="custom-form-grid">
         <label>Business name<input name="business" maxlength="120" autocomplete="organization" placeholder="Your business"></label>
         <label>Service or job<input name="service" maxlength="160" placeholder="Describe the work"></label>
-        <label>Workers on the job<input name="workers" type="number" inputmode="decimal" min="0.1" step="0.1" value="1"></label>
-        <label>Hours per worker<input name="hours" type="number" inputmode="decimal" min="0.1" step="0.1" value="2"></label>
-        <label>Loaded hourly labour cost (A$)<input name="rate" type="number" inputmode="decimal" min="0" step="0.01" value="45"></label>
-        <label>Materials (A$)<input name="materials" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
-        <label>Travel and vehicle (A$)<input name="travel" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
-        <label>Other direct costs (A$)<input name="other" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+      </div>
+      <h2>Labour lines</h2>
+      <div class="quote-lines" data-job-roles></div>
+      <button class="button button-secondary" type="button" data-add-role>Add a labour line</button>
+      <div class="custom-form-grid">
+        <label>Materials purchased (A$)<input name="materials" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label>Materials markup (%)<input name="materialMarkupPct" type="number" inputmode="decimal" min="0" step="0.1" value="0"></label>
+        <label>Equipment (A$)<input name="equipment" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label>Vehicle kilometres<input name="km" type="number" inputmode="decimal" min="0" step="0.1" value="0"></label>
+        <label>Cost per kilometre (A$)<input name="kmRate" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label>Other travel (A$)<input name="travel" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label>Contingency (% of direct cost)<input name="contingencyPct" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0"></label>
         <label>Allocated overhead (A$)<input name="overhead" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
         <label>Customer price before GST (A$)<input name="price" type="number" inputmode="decimal" min="0" step="0.01" value="300"></label>
-        <label>Target margin (%)<input name="target" type="number" inputmode="decimal" min="0" max="99" step="0.1" value="25"></label>
+        <label>Target margin (%)<input name="target" type="number" inputmode="decimal" min="0" max="99.9" step="0.1" value="25"></label>
       </div>
-      <p class="fine-print">Starter values are examples only. Use actual payroll, supplier, vehicle and overhead records. This sheet does not determine tax treatment or the right price for a job.</p>
+      <p class="fine-print">Starter values are examples only. Use actual payroll, supplier, vehicle and overhead records. Costs are kept separate from the price and from GST. This sheet does not determine tax treatment or the right price for a job.</p>
       <button class="button" type="submit">Calculate job cost</button>
     </form>
     <aside class="tool-result custom-tool-output" data-job-cost-result aria-live="polite"><p class="eyebrow">Job-cost result</p><h2>Enter the job assumptions</h2><p>We will show direct cost, total cost, contribution, margin and the price implied by your target.</p></aside>

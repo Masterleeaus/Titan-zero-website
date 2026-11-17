@@ -10,9 +10,9 @@ const page = read('pages/tools.html');
 const hrefs = (html) => [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1]);
 const toolCards = [...page.matchAll(/<article class="hub-tool-card tool-entry" id="tool-([\w-]+)" data-tool /g)].map((m) => m[1]);
 
-test('directory lists 19 tools in six named groups', () => {
-  assert.equal(toolCards.length, 19);
-  assert.equal(new Set(toolCards).size, 19);
+test('directory lists 27 tools (19 Titan Zero, 8 independent) in six named groups', () => {
+  assert.equal(toolCards.length, 27);
+  assert.equal(new Set(toolCards).size, 27);
   const groups = [...page.matchAll(/data-tool-section aria-labelledby="[\w-]+"><div class="tools-intro"><div><h2 id="[\w-]+">([^<]+)<\/h2>/g)].map((m) => m[1]);
   assert.deepEqual(groups, ['Sales &amp; Customers', 'Pricing &amp; Profit', 'Capacity &amp; Scheduling', 'Staff &amp; Training', 'Cash Flow', 'Operations &amp; Planning']);
 });
@@ -35,7 +35,7 @@ test('next-step links point to tools in the directory or to a listed external so
       if (link.startsWith('/')) assert.ok(hrefsList.has(link), `next link ${link} is not a directory tool`);
     }
   }
-  assert.ok(internal.size === 11 || internal.size === 19);
+  assert.equal(internal.size, 27);
 });
 
 test('external tool links open in a new tab with a safe rel', () => {

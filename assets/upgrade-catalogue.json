@@ -1,0 +1,84 @@
+{
+  "version": "2026-11-18",
+  "source": "GitHub issue #15, update of 2026-11-18. AI prices are approved, in Australian dollars per month including GST. App upgrade prices are not approved and show 'Request a quote'.",
+  "plugin": {
+    "id": "frontdesk-free",
+    "name": "Scheduling & Enquiries Manager",
+    "route": "/frontdesk/",
+    "price": "Free",
+    "note": "One free WordPress plugin. It is separate from the shared Titan BOS core and is not yet listed on WordPress.org."
+  },
+  "bands": {
+    "Light": { "assistant": 19, "agentTeam": 79 },
+    "Standard": { "assistant": 29, "agentTeam": 99 },
+    "Heavy": { "assistant": 39, "agentTeam": 129 }
+  },
+  "upgrades": [
+    {
+      "id": "assistant",
+      "name": "Titan Zero AI Assistant",
+      "type": "hosted-ai",
+      "route": "/frontdeskai/",
+      "band": "Standard",
+      "priceMonthly": 29,
+      "priceLabel": "A$29 per month, incl. GST",
+      "includes": [],
+      "status": "In development"
+    },
+    {
+      "id": "agent-team",
+      "name": "Titan Zero AI Agent Team",
+      "type": "hosted-ai",
+      "route": "/frontdeskagent/",
+      "band": "Standard",
+      "priceMonthly": 99,
+      "priceLabel": "A$99 per month, incl. GST",
+      "includes": ["assistant"],
+      "status": "In development"
+    },
+    {
+      "id": "supercharged",
+      "name": "SuperchargedAt.Work",
+      "type": "connected-app",
+      "route": "/apps/desk/",
+      "band": null,
+      "priceMonthly": null,
+      "priceLabel": "Request a quote",
+      "includes": [],
+      "status": "Connection not yet live"
+    },
+    {
+      "id": "scheduled",
+      "name": "ScheduledAt.Work",
+      "type": "connected-app",
+      "route": "/apps/build/",
+      "band": null,
+      "priceMonthly": null,
+      "priceLabel": "Request a quote",
+      "includes": [],
+      "status": "Connection not yet live"
+    },
+    {
+      "id": "sorted",
+      "name": "SortedAt.Work",
+      "type": "connected-app",
+      "route": "/apps/field/",
+      "band": null,
+      "priceMonthly": null,
+      "priceLabel": "Request a quote",
+      "includes": [],
+      "status": "Connection not yet live"
+    },
+    {
+      "id": "skilled",
+      "name": "SkilledAt.Work",
+      "type": "connected-app",
+      "route": "/apps/skilled/",
+      "band": null,
+      "priceMonthly": null,
+      "priceLabel": "Request a quote",
+      "includes": [],
+      "status": "Connection not yet live"
+    }
+  ]
+}
