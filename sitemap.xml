@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url>
+      <url>
+    <loc>https://titanzero.io/plugins/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+<url>
     <loc>https://titanzero.io/frontdesk/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -50,7 +55,6 @@
   <url><loc>https://titanzero.io/apps/solo/</loc></url>
   <url><loc>https://titanzero.io/terms/</loc></url>
   <url><loc>https://titanzero.io/fair-use/</loc></url>
-  <url><loc>https://titanzero.io/frontdeskpro/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://titanzero.io/frontdeskai/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://titanzero.io/frontdeskagent/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
