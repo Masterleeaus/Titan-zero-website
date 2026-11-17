@@ -18,15 +18,15 @@ jobs:
       - name: Check isolated staging target
         env:
           STAGING_RELEASE_DIR: ${{ vars.STAGING_RELEASE_DIR }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          INTERSERVER_SSH_HOST: ${{ secrets.INTERSERVER_SSH_HOST }}
+          INTERSERVER_SSH_USER: ${{ secrets.INTERSERVER_SSH_USER }}
+          INTERSERVER_SSH_PRIVATE_KEY: ${{ secrets.INTERSERVER_SSH_PRIVATE_KEY }}
+          INTERSERVER_SSH_KNOWN_HOSTS: ${{ secrets.INTERSERVER_SSH_KNOWN_HOSTS }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER"
-          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          test -n "$INTERSERVER_SSH_HOST" && test -n "$INTERSERVER_SSH_USER"
+          test -n "$INTERSERVER_SSH_PRIVATE_KEY" && test -n "$INTERSERVER_SSH_KNOWN_HOSTS"
           # Refuse production webroot, generic directories and unexpected targets.
           [[ "$STAGING_RELEASE_DIR" =~ ^/home/[A-Za-z0-9_-]+/.*/titanzero-marketing-staging$ ]]
           test -s index.html
@@ -36,14 +36,14 @@ jobs:
           fi
           umask 077
           mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$INTERSERVER_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$INTERSERVER_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/known_hosts ~/.ssh/id_ed25519
           test -s ~/.ssh/known_hosts
-          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" 'echo "Authenticated staging deploy account"'
-          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$STAGING_RELEASE_DIR/$GITHUB_SHA'"
+          ssh -o StrictHostKeyChecking=yes "$INTERSERVER_SSH_USER@$INTERSERVER_SSH_HOST" 'echo "Authenticated staging deploy account"'
+          ssh -o StrictHostKeyChecking=yes "$INTERSERVER_SSH_USER@$INTERSERVER_SSH_HOST" "mkdir -p '$STAGING_RELEASE_DIR/$GITHUB_SHA'"
           rsync -az --exclude '.git/' --exclude '.github/' --exclude 'docs/' --exclude 'pages/' \
             --exclude 'scripts/' --exclude 'node_modules/' --exclude '*.md' \
             -e 'ssh -o StrictHostKeyChecking=yes' ./ \
-            "$DEPLOY_USER@$DEPLOY_HOST:$STAGING_RELEASE_DIR/$GITHUB_SHA/"
+            "$INTERSERVER_SSH_USER@$INTERSERVER_SSH_HOST:$STAGING_RELEASE_DIR/$GITHUB_SHA/"
           echo "Staged commit $GITHUB_SHA (no production webroot changed)."
