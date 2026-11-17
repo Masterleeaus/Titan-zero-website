@@ -4,12 +4,18 @@ on:
     paths:
       - 'assets/tools.js'
       - 'scripts/test-break-even.mjs'
+      - 'assets/tool-calcs.js'
+      - 'tests/**'
+      - 'pages/tool-*.html'
       - '.github/workflows/business-tools-tests.yml'
   push:
     branches: [main]
     paths:
       - 'assets/tools.js'
       - 'scripts/test-break-even.mjs'
+      - 'assets/tool-calcs.js'
+      - 'tests/**'
+      - 'pages/tool-*.html'
       - '.github/workflows/business-tools-tests.yml'
 permissions:
   contents: read
@@ -23,3 +29,4 @@ jobs:
           node-version: '22'
       - run: node --check assets/tools.js
       - run: node scripts/test-break-even.mjs
+      - run: node --test tests/break-even.test.mjs tests/tools-handoff-privacy.test.mjs tests/tool-calcs.test.mjs
