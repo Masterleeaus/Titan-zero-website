@@ -1,0 +1,84 @@
+name: Website release to InterServer
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Release destination"
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
+permissions:
+  contents: read
+concurrency:
+  group: website-release-${{ github.event.inputs.target || 'verify' }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate static site, routes and safe deploy content
+        run: python3 scripts/validate-release.py
+      - name: Build immutable static site release
+        run: |
+          mkdir -p release
+          tar --exclude=.git --exclude=.github --exclude=release --exclude=docs --exclude=scripts -cf release/titanzero-marketing.tar .
+          sha256sum release/titanzero-marketing.tar > release/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marketing-site-${{ github.sha }}
+          path: release/
+          retention-days: 30
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: marketing-site-${{ github.sha }}
+          path: release/
+      - name: Check deployment configuration
+        env:
+          HOST: ${{ secrets.INTERSERVER_SSH_HOST }}
+          USER: ${{ secrets.INTERSERVER_SSH_USER }}
+          KEY: ${{ secrets.INTERSERVER_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INTERSERVER_SSH_KNOWN_HOSTS }}
+          DEPLOY_ROOT: ${{ vars.INTERSERVER_MARKETING_RELEASE_ROOT }}
+          HEALTH_URL: ${{ vars.INTERSERVER_MARKETING_HEALTH_URL }}
+        run: |
+          test -n "$HOST" && test -n "$USER" && test -n "$KEY" && test -n "$KNOWN_HOSTS" && test -n "$DEPLOY_ROOT" && test -n "$HEALTH_URL" || { echo 'Missing GitHub environment configuration'; exit 1; }
+          case "$DEPLOY_ROOT" in /home/*/domains/*/releases|/home/*/domains/*/releases/*) ;; *) echo 'Unexpected release root; refusing'; exit 1;; esac
+          case "$HEALTH_URL" in https://*) ;; *) echo 'Health URL must be HTTPS'; exit 1;; esac
+      - name: Deploy immutable website release through restricted SSH
+        env:
+          SSH_HOST: ${{ secrets.INTERSERVER_SSH_HOST }}
+          SSH_USER: ${{ secrets.INTERSERVER_SSH_USER }}
+          SSH_PORT: ${{ vars.INTERSERVER_SSH_PORT || '22' }}
+          SSH_KEY: ${{ secrets.INTERSERVER_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INTERSERVER_SSH_KNOWN_HOSTS }}
+          DEPLOY_ROOT: ${{ vars.INTERSERVER_MARKETING_RELEASE_ROOT }}
+          RELEASE_ID: ${{ github.sha }}
+          HEALTH_URL: ${{ vars.INTERSERVER_MARKETING_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh_opts=(-p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          host="$SSH_USER@$SSH_HOST"
+          # The target root is a release-only directory, NOT public_html.
+          ssh "${ssh_opts[@]}" "$host" "mkdir -p '$DEPLOY_ROOT/$RELEASE_ID' && test ! -e '$DEPLOY_ROOT/$RELEASE_ID/site'"
+          scp -P "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes release/titanzero-marketing.tar release/SHA256SUMS "$host:$DEPLOY_ROOT/$RELEASE_ID/"
+          ssh "${ssh_opts[@]}" "$host" "cd '$DEPLOY_ROOT/$RELEASE_ID' && sha256sum -c SHA256SUMS && mkdir site && tar -xf titanzero-marketing.tar -C site && test -f site/index.html"
+          # Manual server-side promotion is intentionally required until the
+          # DirectAdmin vhost document root, permissions and rollback are tested.
+          echo "Release staged at $DEPLOY_ROOT/$RELEASE_ID/site"
+          echo "Not activated: server-side symlink/vhost switch requires an approved runbook."
