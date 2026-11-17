@@ -97,7 +97,7 @@ Scheduling & Enquiries is Standard (approved). Other plugin prices are proposals
 ## Invoices & Payments
 
 **Status:** Planned  
-**AI workload:** Light  
+**AI workload:** Standard  
 **Summary:** Invoices, deposits, payment collection and follow-up for everything you are owed.
 
 **Features** (each one needs a test):
