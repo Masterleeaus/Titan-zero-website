@@ -1,0 +1,39 @@
+name: Website release gate
+on:
+  pull_request:
+    paths:
+      - 'pages/**'
+      - 'apps/**'
+      - 'about/**'
+      - 'frontdesk*/**'
+      - 'pricing/**'
+      - 'assets/**'
+      - 'scripts/site-gate.mjs'
+      - 'sitemap.xml'
+      - 'index.html'
+      - '.github/workflows/site-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'pages/**'
+      - 'apps/**'
+      - 'about/**'
+      - 'frontdesk*/**'
+      - 'pricing/**'
+      - 'assets/**'
+      - 'scripts/site-gate.mjs'
+      - 'sitemap.xml'
+      - 'index.html'
+      - '.github/workflows/site-gate.yml'
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source and published copies, canonicals, sitemap, links, headings, alts, catalogue
+        run: node scripts/site-gate.mjs check
