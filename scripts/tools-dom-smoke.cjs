@@ -100,6 +100,23 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('lead simple rate above 100% gives no result', !/Scenario revenue difference/.test(bad.result), bad.result.slice(0, 160));
 }
 
+// 0e. Job profitability (#26): saved Service pricing figures are offered only on click, then fill the inputs.
+{
+  const payload = { role: 'Technician', labourHours: 2, labourRate: 45, materials: 100, travel: 20, equipment: 10, overhead: 0, contingencyPct: 5, targetMarginPct: 30, targetPrice: 400 };
+  const none = run('pages/tool-job-profitability.html', { submit: false });
+  check('no handoff box is shown without saved figures', none.window.document.querySelector('[data-pricing-handoff]').hidden === true);
+  const r = run('pages/tool-job-profitability.html', { storage: { titanPricingHandoffV1: payload }, submit: false });
+  const doc = r.window.document;
+  const box = doc.querySelector('[data-pricing-handoff]');
+  check('saved Service pricing figures are offered', box.hidden === false);
+  box.querySelector('button').click();
+  const app = doc.querySelector('[data-tools-app]');
+  app.querySelector('[data-tool-form]').dispatchEvent(new r.window.Event('submit', { bubbles: true, cancelable: true }));
+  const text = app.querySelector('[data-tool-result]').textContent.replace(/\s+/g, ' ');
+  // Revenue 400 ex GST, labour 2 x 45 = 90, travel with equipment 30, materials 100: direct cost 220, contribution 180.
+  check('handoff figures flow into the result (contribution A$180)', /A\$180/.test(text), text.slice(0, 200));
+}
+
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
 {
   const r = run('pages/tool-break-even.html', { fields: { fixed: 1, price: 100.1, variable: 100 } });
