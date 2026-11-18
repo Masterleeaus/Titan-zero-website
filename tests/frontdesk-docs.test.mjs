@@ -52,3 +52,8 @@ test('no Pro product is offered and status is not claimed as live', () => {
   assert.match(docs, /No live status feed is published yet/);
   assert.match(docs, /No billing is live yet/);
 });
+
+test('the Front Desk hub links to the documentation from its body, not the shared footer', () => {
+  const hub = readFileSync(join(ROOT, 'pages/frontdesk.html'), 'utf8');
+  assert.match(hub, /href="\/frontdesk-docs\/"/);
+});
