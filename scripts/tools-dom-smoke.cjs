@@ -44,7 +44,11 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   if (app && tab) app.querySelector('[data-tool-tab="' + tab + '"]')?.dispatchEvent(new window.Event('click', { bubbles: true }));
   for (const [id, value] of Object.entries(fields)) {
     const control = doc.getElementById('tool-' + id);
-    if (control) control.value = String(value);
+    if (control) {
+      control.value = String(value);
+      // Fire change as a user would, so mode-dependent fields are shown or hidden (#29).
+      control.dispatchEvent(new window.Event('change', { bubbles: true }));
+    }
   }
   const form = app && app.querySelector('[data-tool-form]');
   let result = '';
@@ -82,6 +86,18 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('missed recovery above likely conversion refused', /cannot be higher than likely conversion/.test(recovery.result), recovery.result.slice(0, 160));
   const channels = run('pages/tool-missed-calls.html', { fields: { calls: 120, missed: 12, convert: 30, jobValue: 350, smsPct: 70, emailPct: 40 } });
   check('missed SMS plus email above 100% refused', /cannot add up to more than 100%/.test(channels.result), channels.result.slice(0, 160));
+}
+
+// 0d. Lead conversion (#29): simple mode uses one rate per response; funnel mode is the default.
+{
+  const simple = run('pages/tool-lead-conversion.html', { fields: { mode: 'simple', leads: 200, value: 400, contribPct: 50, simpleBase: 20, simpleAlt: 25 } });
+  check('lead simple mode gives A$4,000 revenue difference', /A\$4,000/.test(simple.result), simple.result.slice(0, 160));
+  const funnel = run('pages/tool-lead-conversion.html', { fields: {} });
+  // Defaults come from the industry profile, so only the funnel result shape is asserted here.
+  check('lead funnel default shows stage-based result', /Scenario revenue difference\/month/.test(funnel.result) && /Baseline lead-to-completed rate/.test(funnel.result), funnel.result.slice(0, 160));
+  const bad = run('pages/tool-lead-conversion.html', { fields: { mode: 'simple', simpleBase: 120, simpleAlt: 25 } });
+  // The input's max of 100 stops the submit, so no revenue difference is shown.
+  check('lead simple rate above 100% gives no result', !/Scenario revenue difference/.test(bad.result), bad.result.slice(0, 160));
 }
 
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
