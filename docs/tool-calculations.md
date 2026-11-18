@@ -1,6 +1,6 @@
 # Tool calculations (issues #24-#33)
 
-Pure calculation code lives in `assets/tool-calcs.js` and is tested by `tests/tool-calcs.test.mjs`.
+Pure calculation code lives in `assets/tools-engine.js` (`engine.formulas`, #104) and is tested by `tests/tool-calcs.test.mjs` and `tests/tools-formulas-fixtures.test.mjs`.
 The tool pages (`pages/tool-*.html`) and their UI code (`assets/tools.js`) call it. Nothing is sent to a server.
 All rates, shares and costs are entered by the user. No statutory rate, price, ROI or savings figure is built in.
 
@@ -16,7 +16,7 @@ All rates, shares and costs are entered by the user. No statutory rate, price, R
 |---|---|---|---|
 | #24 | tool-admin-cost | Admin value (hours x 52/12 x rate, unchanged default). Reclaim, cash and reinvestment shares; cash only counted when entered. | No comparison scenarios; no Supercharged/Agent scenario text. |
 | #25 | tool-should-i-hire | On-cost split (super, leave, other; defaults keep the old 18% total). Roster utilisation, contractor comparison at equal billable hours, jobs needed (rounded up, exact shown). | Extra-hours threshold is computed but not shown. |
-| #26 | tool-job-profitability | Overhead, GST-inclusive or exclusive revenue, discount, gross margin and markup labelled separately, target price, reconciliation test. | Not linked to the job-cost sheet. |
+| #26 | tool-job-profitability | Overhead, GST-inclusive or exclusive revenue, discount and write-off (together at most 100%), gross margin and markup labelled separately, direct-cost contribution kept separate, scenario without discount or write-off, target gross-margin price (direct cost only) and after-overhead target shown separately, reconciliation assertion. | Not read automatically from the job-cost sheet or service pricing tool; the page links to both and the user types totals across. |
 | #27 | tool-capacity-planner | Theoretical and bookable jobs; leave, days, non-billable time, travel buffer, cancellations. Zero and negative duration refused. | No staff/skill coverage; no link to ScheduledAt.Work. Route feasibility not inferred. |
 | #28 | tool-missed-calls | Opportunity (unchanged default), recoverable share, contribution, messaging cost. Results labelled assumed, not guaranteed. | No weighted scenarios; no channel split; no product link. |
 | #29 | tool-lead-conversion | Four-stage funnel (contacted, qualified, booked, completed), baseline vs scenario, revenue and contribution. Over-100 refused, negative uplift shown as reduction. | Simple single-rate mode removed; no product link. |
