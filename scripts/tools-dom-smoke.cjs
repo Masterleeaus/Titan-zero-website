@@ -339,6 +339,30 @@ const pricingInputs = { role: 'Technician', labourHours: 2, labourRate: 45, mate
   check('quote: a corrupt save does not throw', r.errors.length === 0, r.errors.join('; '));
 }
 
+// 9. Booking revenue (#35): the side-by-side comparison renders both weeks and the monthly gap, with no GST added.
+{
+  const page = loadPage('pages/tool-booking-revenue.html');
+  const form = page.doc.querySelector('[data-planner-form]');
+  const set = (name, prefix, value) => {
+    const control = form.querySelector('[name="' + name + '"][data-prefix="' + prefix + '"]');
+    if (control) control.value = String(value);
+  };
+  for (const [name, value] of [['bookingsPerWeek', 20], ['serviceValue', 180], ['costPerJob', 70]]) set(name, 's', value);
+  for (const prefix of ['a', 'b']) {
+    set('noShowPct', prefix, 8);
+    set('cancelPct', prefix, 4);
+  }
+  set('rebookPct', 'b', 40);
+  set('depositPct', 'b', 25);
+  form.dispatchEvent(new page.window.Event('submit', { bubbles: true, cancelable: true }));
+  const result = page.doc.querySelector('[data-planner-result]').textContent.replace(/\s+/g, ' ');
+  check('booking: the comparison shows the difference section', /Difference between the two scenarios/.test(result), result.slice(0, 200));
+  check('booking: the scenario week shows cash of A$3,405.60', /3,405\.60/.test(result), result.slice(0, 400));
+  check('booking: the monthly gap is A$738.40 (9,127.73 less 8,389.33)', /Monthly contribution difference[^]*?738\.40/.test(result), result.slice(0, 400));
+  check('booking: the page says no GST is added', /excluding GST/.test(result));
+  check('booking: no script errors on the booking page', page.errors.length === 0, page.errors.join('; '));
+}
+
 if (failures.length) {
   console.error('FAIL: ' + failures.length + ' check(s) failed, ' + passed + ' passed');
   for (const f of failures) console.error('- ' + f);
