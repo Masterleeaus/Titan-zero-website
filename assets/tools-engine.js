@@ -703,18 +703,28 @@
       return rate * share / 100;
     }, 1);
   }
+  // Simple mode (mode: 'simple') takes one lead-to-completed rate for the current and the scenario
+  // response. Funnel mode (the default) multiplies the four stage rates.
   function leadConversion(v) {
     const leads = nonNeg(v.leads, 'Leads per month');
     const value = nonNeg(v.value, 'Average customer/job value');
     const contribPct = pct(v.contribPct ?? 100, 'Contribution margin');
-    const base = {};
-    const scen = {};
-    for (const key of STAGES) {
-      base[key] = v['base_' + key];
-      scen[key] = v['alt_' + key];
+    if (v.mode !== undefined && v.mode !== 'simple' && v.mode !== 'funnel') fail('Choose simple or funnel mode.');
+    let baseRate;
+    let scenRate;
+    if (v.mode === 'simple') {
+      baseRate = pct(v.simpleBase, 'Current lead-to-completed rate') / 100;
+      scenRate = pct(v.simpleAlt, 'Scenario lead-to-completed rate') / 100;
+    } else {
+      const base = {};
+      const scen = {};
+      for (const key of STAGES) {
+        base[key] = v['base_' + key];
+        scen[key] = v['alt_' + key];
+      }
+      baseRate = funnelRate(base, 'Baseline');
+      scenRate = funnelRate(scen, 'Scenario');
     }
-    const baseRate = funnelRate(base, 'Baseline');
-    const scenRate = funnelRate(scen, 'Scenario');
     const baseCompleted = leads * baseRate;
     const scenCompleted = leads * scenRate;
     const deltaCompleted = scenCompleted - baseCompleted;
