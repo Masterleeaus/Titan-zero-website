@@ -358,7 +358,22 @@
   const calculators = { admin, hire, breakeven, profit, capacity, calls, leads, invoice };
 
   // ---- Local profile schema (#43/#44) -------------------------------------------
-  const ASSUMPTION_KEYS = new Set(Object.values(RULES).flatMap((rules) => Object.keys(rules)));
+  // Every assumption a live tool persists must survive migration. These are the extra
+  // fields on the public tool forms (shares, rates, ageing buckets, funnel stages).
+  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
+  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
+  const EXTRA_ASSUMPTION_KEYS = [
+    'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
+    'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',
+    'daysPerWeek', 'leaveDays', 'nonbillPct', 'travelMin', 'cancelPct', 'reachPct', 'contribPct',
+    'commsPerEnquiry', 'chase',
+    ...FUNNEL_STAGES.flatMap((stage) => ['base_' + stage, 'alt_' + stage]),
+    ...AGEING_BUCKETS.flatMap((bucket) => ['age_' + bucket, 'collect_' + bucket]),
+  ];
+  const ASSUMPTION_KEYS = new Set([
+    ...Object.values(RULES).flatMap((rules) => Object.keys(rules)),
+    ...EXTRA_ASSUMPTION_KEYS,
+  ]);
 
   function boundedText(value) {
     return typeof value === 'string' ? value.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, MAX_TEXT) : '';

@@ -56,10 +56,16 @@ Reproducible checks (run from the repository root; Node 22, no install needed):
 
 ```bash
 node --check assets/tools-engine.js && node --check assets/tools.js && node --check assets/site.js
-node --test tests/break-even.test.mjs tests/tools-engine.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
+node --test tests/*.test.mjs
 node scripts/test-break-even.mjs
 node scripts/check-tool-parity.mjs
+node scripts/check-tool-a11y.mjs
+node scripts/site-gate.mjs check
+# Needs jsdom outside the repository, for example:
+#   npm install --prefix /tmp/dom jsdom@24 && JSDOM_DIR=/tmp/dom node scripts/tools-dom-smoke.cjs
 ```
+
+`scripts/tools-dom-smoke.cjs` runs the live calculator pages in jsdom: it submits forms, checks the break-even edge cases, validation messages and the V2 to V3 profile migration. `scripts/check-tool-a11y.mjs` checks labels, button names, one h1 and live regions on the calculator source pages. Both run in `.github/workflows/tools-regression.yml`.
 
 Block a release if any command fails. The parity check fails when a `tools/<slug>/index.html` copy differs from `pages/tool-<slug>.html`, or when a calculator page loads `tools.js` before the engine.
 
