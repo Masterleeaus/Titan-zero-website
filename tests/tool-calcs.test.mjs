@@ -10,6 +10,32 @@ const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, message || `${actual} != ${expected}`);
 
 // ---- #24 admin cost
+test('admin: on-costs default to zero, so the original value is unchanged', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 45 });
+  close(r.loadedRate, 45);
+  close(r.capacityValue, 1950);
+  close(C.adminCost({ adminHours: 10, adminRate: 45, oncostPct: 0 }).capacityValue, 1950);
+});
+
+test('admin: on-costs raise the loaded rate and every value that uses it', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 40, oncostPct: 25, reclaimPct: 50 });
+  close(r.loadedRate, 50, 'A$40 wage plus 25% on-costs');
+  close(r.capacityValue, 10 * 52 / 12 * 50);
+  close(r.recoveredValue, 10 * 0.5 * 52 / 12 * 50);
+});
+
+test('admin: weeks convert to months with 52 / 12 (an average month, not a calendar month)', () => {
+  const r = C.adminCost({ adminHours: 12, adminRate: 10 });
+  close(r.weeksPerMonth, 52 / 12);
+  close(r.capacityValue, 12 * 52 / 12 * 10);
+});
+
+test('admin: on-costs must be a number between 0 and 200 percent', () => {
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: -1 }), /at least 0|must be/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 201 }), /must be 0 to 200/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 'x' }), /must be a number/);
+});
+
 test('admin: default inputs reproduce the original hours x 52/12 x rate value', () => {
   const r = C.adminCost({ adminHours: 10, adminRate: 45 });
   close(r.metric, 10 * 52 / 12 * 45);
