@@ -41,6 +41,36 @@ export function pageEntries(root = ROOT) {
     });
 }
 
+// Structured data (issue #7): every JSON-LD block must parse, must not claim ratings or reviews
+// (no testimonials or ratings are approved), and Front Desk / plugin pages may only name approved prices.
+export function jsonLdProblems(html, file = 'page') {
+  const problems = [];
+  for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)) {
+    let data;
+    try {
+      data = JSON.parse(m[1]);
+    } catch (err) {
+      problems.push(`${file}: JSON-LD does not parse (${err.message})`);
+      continue;
+    }
+    const walk = (node) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== 'object') return;
+      for (const [key, value] of Object.entries(node)) {
+        if (key === 'aggregateRating' || key === 'review' || key === 'reviews') {
+          problems.push(`${file}: JSON-LD must not contain ${key} (no approved ratings or testimonials)`);
+        }
+        if (key === 'price' && PLUGIN_PRICE_PAGE.test(file) && !APPROVED_AMOUNTS.has(Number(value))) {
+          problems.push(`${file}: JSON-LD price ${value} is not an approved amount`);
+        }
+        walk(value);
+      }
+    };
+    walk(data);
+  }
+  return problems;
+}
+
 function sync(root) {
   const entries = pageEntries(root);
   for (const e of entries) {
@@ -117,6 +147,8 @@ export function check(root = ROOT) {
     for (let i = 1; i < levels.length; i++) {
       if (levels[i] > levels[i - 1] + 1) fail(`${p.file}: heading jumps from h${levels[i - 1]} to h${levels[i]}`);
     }
+    // 3b. Structured data parses and makes no unapproved rating, review or price claims.
+    for (const problem of jsonLdProblems(html, p.file)) fail(problem);
     // 4. Images need alt text.
     for (const img of html.match(/<img\b[^>]*>/gi) || []) {
       if (!/\balt=/.test(img)) fail(`${p.file}: image without alt: ${img.slice(0, 80)}`);
