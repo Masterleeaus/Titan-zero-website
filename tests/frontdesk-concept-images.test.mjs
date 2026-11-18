@@ -1,7 +1,7 @@
 // Issue #6 / #89: Front Desk concept images must be labelled, responsive and accessible.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,4 +62,11 @@ test('concept caption text meets WCAG AA contrast on its background', () => {
 
 test('the retired Pro page does not show a concept image', () => {
   assert.doesNotMatch(read('pages/frontdeskpro.html'), /concept-figure|frontdesk-(pro|ai|agent)-concept/);
+});
+
+test('every Front Desk image in assets/ is referenced by a page (no unused or unlicensed files)', () => {
+  const assetsDir = join(ROOT, 'assets');
+  const files = readdirSync(assetsDir).filter((f) => /^frontdesk-.*\.webp$/.test(f));
+  const pages = readdirSync(join(ROOT, 'pages')).filter((f) => f.endsWith('.html')).map((f) => read(`pages/${f}`)).join('\n');
+  for (const f of files) assert.ok(pages.includes(`/assets/${f}`), `${f} is not referenced by any page`);
 });

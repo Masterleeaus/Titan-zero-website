@@ -64,6 +64,15 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('profit discount plus write-off above 100% refused', /cannot exceed 100%/.test(over.result), over.result.slice(0, 160));
 }
 
+// 0b. Capacity planner (#27): skill coverage halves bookable jobs; zero job duration is refused.
+{
+  const half = run('pages/tool-capacity-planner.html', { fields: { workers: 4, hours: 30, duration: 2.5, currentJobs: 150, skillPct: 50 } });
+  check('capacity 50% skill coverage gives 104 bookable jobs', /104 jobs\/month/.test(half.result), half.result.slice(0, 160));
+  const zero = run('pages/tool-capacity-planner.html', { fields: { workers: 4, hours: 30, duration: 0, currentJobs: 150 } });
+  // Native validation (min 0.1 hours) stops the submit, so no bookable figure is shown.
+  check('capacity zero duration gives no bookable figure', !/jobs\/month/.test(zero.result), zero.result.slice(0, 160));
+}
+
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
 {
   const r = run('pages/tool-break-even.html', { fields: { fixed: 1, price: 100.1, variable: 100 } });
@@ -360,6 +369,30 @@ const pricingInputs = { role: 'Technician', labourHours: 2, labourRate: 45, mate
   const r = loadPage('pages/tool-quote-builder.html', { titanPricingHandoffV1: '{corrupt' });
   check('quote: a corrupt save is not offered', r.doc.querySelector('[data-pricing-handoff]').hidden === true);
   check('quote: a corrupt save does not throw', r.errors.length === 0, r.errors.join('; '));
+}
+
+// 9. Booking revenue (#35): the side-by-side comparison renders both weeks and the monthly gap, with no GST added.
+{
+  const page = loadPage('pages/tool-booking-revenue.html');
+  const form = page.doc.querySelector('[data-planner-form]');
+  const set = (name, prefix, value) => {
+    const control = form.querySelector('[name="' + name + '"][data-prefix="' + prefix + '"]');
+    if (control) control.value = String(value);
+  };
+  for (const [name, value] of [['bookingsPerWeek', 20], ['serviceValue', 180], ['costPerJob', 70]]) set(name, 's', value);
+  for (const prefix of ['a', 'b']) {
+    set('noShowPct', prefix, 8);
+    set('cancelPct', prefix, 4);
+  }
+  set('rebookPct', 'b', 40);
+  set('depositPct', 'b', 25);
+  form.dispatchEvent(new page.window.Event('submit', { bubbles: true, cancelable: true }));
+  const result = page.doc.querySelector('[data-planner-result]').textContent.replace(/\s+/g, ' ');
+  check('booking: the comparison shows the difference section', /Difference between the two scenarios/.test(result), result.slice(0, 200));
+  check('booking: the scenario week shows cash of A$3,405.60', /3,405\.60/.test(result), result.slice(0, 400));
+  check('booking: the monthly gap is A$738.40 (9,127.73 less 8,389.33)', /Monthly contribution difference[^]*?738\.40/.test(result), result.slice(0, 400));
+  check('booking: the page says no GST is added', /excluding GST/.test(result));
+  check('booking: no script errors on the booking page', page.errors.length === 0, page.errors.join('; '));
 }
 
 if (failures.length) {

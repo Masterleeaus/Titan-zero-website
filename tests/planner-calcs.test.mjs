@@ -148,6 +148,72 @@ test('booking revenue: pair reports the monthly contribution difference', () => 
 // ---- #36 travel and route cost ----------------------------------------------
 const travel = { jobsPerDay: 0, jobHours: 0, wageRate: 0, vehicleCostPerKm: 0, paidHoursPerDay: 0, daysPerWeek: 0, gapKm: 0, gapMinutes: 0, setupMinutes: 0 };
 
+// ---- #35 booking revenue: fixtures, extremes, GST and bounds
+const bookingBase = { bookingsPerWeek: 0, serviceValue: 0, costPerJob: 0, noShowPct: 0, cancelPct: 0, rebookPct: 0, depositPct: 0 };
+
+test('booking revenue (#35): a representative week matches the hand-worked figures', () => {
+  // 20 bookings at A$180. 8% no-show and 4% cancelled leave 2.4 lost bookings. 40% are rebooked,
+  // so 0.96 are rebooked and 1.44 are unrecovered. A quarter of the unrecovered value is recovered by deposit.
+  // Completed = 17.6 + 0.96 = 18.56 jobs at A$180 = A$3,340.80. Deposits = 1.44 x 25% x A$180 = A$64.80.
+  // Cash = A$3,405.60. Job cost = 18.56 x A$70 = A$1,299.20. Contribution = A$2,106.40 a week.
+  const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 20, serviceValue: 180, costPerJob: 70, noShowPct: 8, cancelPct: 4, rebookPct: 40, depositPct: 25 });
+  assert.equal(r.ok, true);
+  assert.equal(cell(r, 'Booked value')[1].v, 3600);
+  assert.equal(cell(r, 'Lost to no-show or cancellation')[1].v, 432);
+  assert.equal(cell(r, 'Completed revenue (includes rebooked jobs)')[1].v, 3340.8);
+  assert.equal(cell(r, 'Deposits or fees recovered')[1].v, 64.8);
+  assert.equal(cell(r, 'Cash collected')[1].v, 3405.6);
+  assert.equal(cell(r, 'Job cost for completed work')[1].v, 1299.2);
+  assert.equal(cell(r, 'Contribution after job cost')[1].v, 2106.4);
+  // Monthly = weekly x 52 / 12 = 9,127.73 (rounded to the cent)
+  assert.equal(r.headline.v, 9127.73);
+});
+
+test('booking revenue (#35): 100% no-show with 100% rebooked recovers the whole booked value', () => {
+  const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 10, serviceValue: 100, costPerJob: 40, noShowPct: 100, rebookPct: 100 });
+  assert.equal(cell(r, 'Completed revenue (includes rebooked jobs)')[1].v, 1000);
+  assert.equal(cell(r, 'Deposits or fees recovered')[1].v, 0);
+  assert.equal(cell(r, 'Contribution after job cost')[1].v, 600);
+});
+
+test('booking revenue (#35): 100% deposit on unrecovered value with 100% no-show and 0% rebook counts the deposit once', () => {
+  const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 10, serviceValue: 100, costPerJob: 40, noShowPct: 100, depositPct: 100 });
+  assert.equal(cell(r, 'Completed revenue (includes rebooked jobs)')[1].v, 0);
+  assert.equal(cell(r, 'Deposits or fees recovered')[1].v, 1000);
+  assert.equal(cell(r, 'Cash collected')[1].v, 1000);
+  assert.equal(cell(r, 'Job cost for completed work')[1].v, 0, 'no completed jobs means no job cost');
+});
+
+test('booking revenue (#35): extreme but valid inputs stay finite and in cents', () => {
+  const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 100000, serviceValue: 1000000, costPerJob: 999999.99, noShowPct: 50, cancelPct: 50, rebookPct: 100, depositPct: 100 });
+  assert.equal(r.ok, true);
+  for (const value of [r.headline.v, ...r.summary.map((x) => x.v)]) {
+    assert.ok(Number.isFinite(value), 'finite');
+    assert.equal(Math.round(value * 100), value * 100, 'whole cents');
+  }
+});
+
+test('booking revenue (#35): no GST is added to the service value, so cash is the value times completed jobs', () => {
+  const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 5, serviceValue: 100, costPerJob: 0 });
+  assert.equal(cell(r, 'Cash collected')[1].v, 500, 'no 10% added');
+  assert.ok(r.notes.some((n) => /excluding GST/.test(n)), 'the result tells the user the figures exclude GST');
+});
+
+test('booking revenue (#35): rates outside 0 to 100 are refused, including the rebook and deposit shares', () => {
+  for (const change of [{ rebookPct: 101 }, { depositPct: -1 }, { cancelPct: 100.5 }, { noShowPct: -0.1 }]) {
+    const r = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 10, serviceValue: 100, costPerJob: 40, ...change });
+    assert.equal(r.ok, false, JSON.stringify(change));
+  }
+});
+
+test('booking revenue (#35): a current and a scenario week are both computed and the difference is the monthly contribution gap', () => {
+  const current = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 20, serviceValue: 180, costPerJob: 70, noShowPct: 8, cancelPct: 4 });
+  const scenario = P.bookingRevenue({ ...bookingBase, bookingsPerWeek: 20, serviceValue: 180, costPerJob: 70, noShowPct: 8, cancelPct: 4, rebookPct: 40, depositPct: 25 });
+  const [gap] = P.definitions['booking-revenue'].pair(current, scenario);
+  assert.equal(gap.v, Math.round((scenario.headline.v - current.headline.v) * 100) / 100);
+  assert.ok(gap.v > 0, 'recovery improves contribution in this fixture');
+});
+
 test('travel: zero jobs and zero rates give zero cost and no overrun', () => {
   const r = P.travelRoute(travel);
   assert.equal(r.ok, true);
