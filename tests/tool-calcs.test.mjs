@@ -1,12 +1,13 @@
 // Deterministic tests for the calculation helpers behind issues #24-#33.
-// Loads assets/tool-calcs.js into a clean VM context: no DOM, no network.
+// The formulas live in assets/tools-engine.js (engine.formulas, #104). No DOM, no network.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 
-const source = readFileSync(new URL('../assets/tool-calcs.js', import.meta.url), 'utf8');
-const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
+const require = createRequire(import.meta.url);
+const C = require('../assets/tools-engine.js').formulas;
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, message || `${actual} != ${expected}`);
 
 // ---- #24 admin cost
