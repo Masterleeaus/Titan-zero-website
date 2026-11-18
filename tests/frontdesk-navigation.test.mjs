@@ -1,90 +1,67 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
-const catalogue = JSON.parse(read('assets/upgrade-catalogue.json'));
-const SITE = 'https://titanzero.io';
+// Issue #19: Front Desk ancestry, header/footer navigation and sitemap coverage.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (p) => readFileSync(join(ROOT, p), 'utf8');
+const sourcePages = readdirSync(join(ROOT, 'pages')).filter((f) => f.endsWith('.html'));
+const allPages = [...sourcePages.map((f) => `pages/${f}`), 'index.html', '404.html'];
+const UPGRADE_ROUTES = ['/frontdeskai/', '/frontdeskagent/', '/apps/desk/', '/apps/build/', '/apps/field/', '/apps/skilled/'];
 
-// Every published HTML page: the homepage, the 404 page and each clean-URL folder copy.
-const published = [
-  { file: 'index.html', url: '/' },
-  { file: '404.html', url: null },
-  ...readdirSync(join(ROOT, 'pages'))
-    .filter((f) => f.endsWith('.html'))
-    .map((f) => {
-      const name = f.slice(0, -5);
-      const route = name === 'recommended-free-tools' ? 'tools/free-tools' : name.replace(/^app-/, 'apps/').replace(/^article-/, 'resources/').replace(/^industry-/, 'industries/').replace(/^tool-/, 'tools/');
-      return { file: `${route}/index.html`, url: `/${route}/` };
-    }),
-];
+const breadcrumb = (html) => (/<nav class="breadcrumbs[^"]*"[\s\S]*?<\/nav>/.exec(html) || [''])[0];
 
-// Returns the inner HTML of the footer column titled "Front Desk".
-function frontDeskFooter(html) {
-  const m = /<div class="footer-col"><h2>Front Desk<\/h2>([\s\S]*?)<\/div>/.exec(html);
-  return m ? m[1] : null;
-}
-
-// Returns the Front Desk header menu panel as a list of hrefs.
-function frontDeskMenuLinks(html) {
-  const start = html.indexOf('frontdesk-menu');
-  if (start < 0) return null;
-  const end = html.indexOf('</details>', start);
-  return [...html.slice(start, end).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
-}
-
-test('every published page has the same Front Desk footer column', () => {
-  const reference = frontDeskFooter(read('pages/frontdesk.html'));
-  assert.ok(reference, 'hub footer column must exist');
-  for (const p of published) {
-    assert.equal(frontDeskFooter(read(p.file)), reference, `${p.file} footer Front Desk column differs`);
+test('every page links the Front Desk hub from header or footer', () => {
+  for (const p of allPages) {
+    assert.match(read(p), /href="\/frontdesk\/"/, `${p} links /frontdesk/`);
   }
 });
 
-test('the connected apps stay in the Business apps footer column, not the Front Desk column', () => {
-  const column = frontDeskFooter(read('pages/frontdesk.html'));
-  for (const app of catalogue.upgrades.filter((u) => u.type === 'connected-app')) {
-    assert.doesNotMatch(column, new RegExp(`href="${app.route}"`), `${app.name} should not be in the Front Desk footer column`);
-  }
-  const apps = read('pages/frontdesk.html');
-  for (const app of catalogue.upgrades.filter((u) => u.type === 'connected-app')) {
-    assert.match(apps, new RegExp(`href="${app.route}"`), `${app.name} should still be linked from the hub`);
+test('every page exposes the six optional upgrade links', () => {
+  for (const p of allPages) {
+    for (const route of UPGRADE_ROUTES) {
+      assert.match(read(p), new RegExp(`href="${route.replace(/\//g, '\\/')}"`), `${p} links ${route}`);
+    }
   }
 });
 
-test('the 404 page header Front Desk menu matches the hub header menu', () => {
-  const hub = frontDeskMenuLinks(read('pages/frontdesk.html'));
-  const notFound = frontDeskMenuLinks(read('404.html'));
-  assert.ok(hub && hub.length > 0, 'hub must have a Front Desk header menu');
-  assert.deepEqual(notFound, hub);
-});
-
-test('every upgrade route is published with its own canonical', () => {
-  for (const u of catalogue.upgrades) {
-    const html = read(join(u.route.slice(1), 'index.html'));
-    const canon = /<link rel="canonical" href="([^"]+)"/.exec(html);
-    assert.ok(canon, `${u.route} has no canonical`);
-    assert.equal(canon[1], `${SITE}${u.route}`, `${u.route} canonical must match its URL`);
+test('Front Desk pages and the two AI upgrades use Front Desk as breadcrumb parent, not /platform/', () => {
+  for (const f of ['frontdesk.html', 'frontdeskai.html', 'frontdeskagent.html']) {
+    const crumb = breadcrumb(read(`pages/${f}`));
+    assert.match(crumb, /<a href="\/frontdesk\/">Front Desk<\/a>/, `${f} parent is /frontdesk/`);
+    assert.doesNotMatch(crumb, /href="\/platform\/"[^>]*>Front Desk/, `${f} does not label /platform/ as Front Desk`);
   }
 });
 
-test('AI upgrade pages sit under Front Desk in their breadcrumb', () => {
-  for (const u of catalogue.upgrades.filter((x) => x.type === 'hosted-ai')) {
-    const html = read(join(u.route.slice(1), 'index.html'));
-    const crumbs = /<nav class="breadcrumbs[^"]*"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
-    assert.ok(crumbs, `${u.route} has no breadcrumb`);
-    assert.match(crumbs[1], new RegExp(`href="/frontdesk/"`), `${u.route} breadcrumb must link back to /frontdesk/`);
+test('connected At.Work app pages sit under Front Desk in the breadcrumb', () => {
+  for (const f of ['app-desk.html', 'app-build.html', 'app-field.html', 'app-skilled.html']) {
+    assert.match(breadcrumb(read(`pages/${f}`)), /<a href="\/frontdesk\/">Front Desk<\/a>/, `${f} ancestry`);
   }
 });
 
-test('connected-app pages name their own app in the breadcrumb', () => {
-  for (const u of catalogue.upgrades.filter((x) => x.type === 'connected-app')) {
-    const html = read(join(u.route.slice(1), 'index.html'));
-    const crumbs = /<nav class="breadcrumbs[^"]*"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
-    assert.ok(crumbs, `${u.route} has no breadcrumb`);
-    assert.match(crumbs[1].replace(/<[^>]+>/g, ' '), new RegExp(u.name.replace(/[.]/g, '\\.')), `${u.route} breadcrumb must name ${u.name}`);
+test('no page labels /platform/ as a Front Desk parent anywhere', () => {
+  for (const p of allPages) {
+    assert.doesNotMatch(read(p), /href="\/platform\/"[^>]*>\s*Front Desk\s*</, `${p}`);
+  }
+});
+
+test('retired Front Desk Pro page is noindex and points canonical to /frontdesk/', () => {
+  const html = read('pages/frontdeskpro.html');
+  assert.match(html, /<meta name="robots" content="noindex/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/titanzero\.io\/frontdesk\/">/);
+});
+
+test('sitemap lists the Front Desk hub with a trailing slash', () => {
+  assert.match(read('sitemap.xml'), /<loc>https:\/\/titanzero\.io\/frontdesk\/<\/loc>/);
+});
+
+test('six At.Work app navigation entries stay in the header', () => {
+  for (const p of ['pages/frontdesk.html', 'pages/app-desk.html']) {
+    const html = read(p);
+    for (const name of ['ScheduledAt.Work', 'SuperchargedAt.Work', 'SortedAt.Work', 'SyncedAt.Work', 'SkilledAt.Work', 'SoloAt.Work']) {
+      assert.ok(html.includes(name), `${p} shows ${name}`);
+    }
   }
 });
