@@ -55,3 +55,13 @@ test('summary never says checkout, order or payment completed', () => {
   const text = formatLine(summarise(['assistant', 'supercharged']));
   assert.doesNotMatch(text, /checkout|order placed|paid|provisioned/i);
 });
+
+test('selector form sends nothing to a server and keeps the selection out of the URL (issue #93)', () => {
+  const html = readFileSync(new URL('../pages/frontdesk.html', import.meta.url), 'utf8');
+  const open = html.match(/<form id="upgrade-selector"[^>]*>/);
+  assert.ok(open, 'selector form exists');
+  assert.doesNotMatch(open[0], /method="get"/i);
+  assert.match(open[0], /method="post"/i);
+  assert.match(open[0], /enctype="text\/plain"/);
+  assert.match(open[0], /action="mailto:support@titanzero\.io"/);
+});
