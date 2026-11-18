@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;background:#0b1220;font-family:Inter,Arial,Helvetica,sans-serif;color:#f4f7fc}
+.frame{position:absolute;inset:40px;border:1px solid #1f3a4f;border-radius:22px;background:linear-gradient(145deg,#0f1b2b,#0a1424);overflow:hidden}
+.bar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid #1f3a4f;background:#0d1826}
+.bar strong{font-size:22px;letter-spacing:.02em}
+.bar > span:not(.tag){font-size:17px;color:#9fb4c9}
+.tag{display:inline-block;background:#00CFD2;color:#06191b;font-weight:800;font-size:16px;letter-spacing:.08em;padding:8px 14px;border-radius:999px}
+.chat{position:absolute;left:48px;top:112px;width:620px;display:flex;flex-direction:column;gap:22px}
+.bubble{max-width:500px;padding:20px 24px;border-radius:18px;font-size:23px;line-height:1.45}
+.cust{align-self:flex-start;background:#18283d;border:1px solid #2c4262;color:#e6eefa;border-bottom-left-radius:4px}
+.ai{align-self:flex-end;background:#0c3d40;border:1px solid #00CFD2;color:#eafffe;border-bottom-right-radius:4px}
+.who{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#9fb4c9;margin-bottom:8px}
+.side{position:absolute;right:48px;top:112px;width:440px;display:flex;flex-direction:column;gap:20px}
+.card{background:#101d30;border:1px solid #27405e;border-radius:16px;padding:22px 24px}
+.card h3{margin:0 0 12px;font-size:19px;font-weight:700;color:#cfe3f6}
+.slot{display:flex;justify-content:space-between;font-size:21px;padding:10px 0;border-bottom:1px solid #22364f;color:#d8e4f2}
+.slot:last-child{border-bottom:0}
+.ok{color:#00CFD2;font-weight:700}
+.approve{display:flex;gap:12px;margin-top:6px}
+.btn{flex:1;text-align:center;font-size:19px;font-weight:700;padding:14px 10px;border-radius:10px;background:#286cdc;color:#fff}
+.btn.alt{background:transparent;border:1px solid #4b6283;color:#dbe6f4}
+.notice{position:absolute;left:48px;bottom:34px;right:48px;font-size:20px;color:#b9c9dc;display:flex;align-items:center;gap:14px}
+.dot{width:12px;height:12px;border-radius:50%;background:#00CFD2;flex-shrink:0}
+</style></head>
+<body>
+<div class="frame">
+  <div class="bar"><strong>Front Desk enquiries</strong><span class="tag">CONCEPTUAL DEMONSTRATION</span></div>
+  <div class="chat">
+    <div><div class="who">Website visitor</div><div class="bubble cust">Hi, can someone come on Thursday morning to clean a two-bedroom flat?</div></div>
+    <div style="align-self:flex-end;text-align:right"><div class="who">AI Assistant (demonstration)</div><div class="bubble ai" style="text-align:left">Thursday has space at 9:00 and 10:30. Shall I hold 9:00 for you? I will ask the owner to confirm before it is booked.</div></div>
+    <div><div class="who">Website visitor</div><div class="bubble cust">9:00 works. Thank you.</div></div>
+  </div>
+  <div class="side">
+    <div class="card"><h3>Booking request</h3>
+      <div class="slot"><span>Thursday, 9:00 am</span><span class="ok">Held</span></div>
+      <div class="slot"><span>Thursday, 10:30 am</span><span>Open</span></div>
+      <div class="approve"><div class="btn">Owner approves</div><div class="btn alt">Change time</div></div>
+    </div>
+    <div class="card"><h3>Owner summary (sample)</h3>
+      <div class="slot"><span>Enquiries answered</span><span>12</span></div>
+      <div class="slot"><span>Waiting for your decision</span><span>1</span></div>
+    </div>
+  </div>
+  <div class="notice"><span class="dot"></span>Illustration only. Shows a planned conversation pattern, not a live product screen. Booking is confirmed only after the owner approves.</div>
+</div>
+</body></html>
