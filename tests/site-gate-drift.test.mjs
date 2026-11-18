@@ -49,7 +49,7 @@ test('an in-page link with no matching id fails the gate', () => {
   const dir = copyRepo();
   try {
     const page = join(dir, 'pages/frontdesk.html');
-    writeFileSync(page, readFileSync(page, 'utf8').replace('href="#services"', 'href="#no-such-section"'));
+    writeFileSync(page, readFileSync(page, 'utf8').replace('href="#upgrades"', 'href="#no-such-section"'));
     // Keep the published copy in step so only the anchor rule fires.
     writeFileSync(join(dir, 'frontdesk/index.html'), readFileSync(page));
     const { problems } = check(dir);
