@@ -60,7 +60,7 @@
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
-      adminRate: rule.money('Loaded hourly cost'),
+      adminRate: rule.money('Hourly wage before on-costs'),
     },
     hire: {
       salary: rule.money('Annual salary'),
@@ -324,7 +324,7 @@
   const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
   const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
-    'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
+    'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',
     'daysPerWeek', 'leaveDays', 'nonbillPct', 'travelMin', 'cancelPct', 'reachPct', 'contribPct',
     'commsPerEnquiry', 'chase',
@@ -428,7 +428,10 @@
   // hours x 52/12 x rate. Recovered time is a separate figure from cash savings.
   function adminCost(v) {
     const hours = nonNeg(v.adminHours, 'Admin hours each week');
-    const rate = nonNeg(v.adminRate, 'Loaded hourly cost');
+    const wage = nonNeg(v.adminRate, 'Hourly wage');
+    const oncost = num(v.oncostPct ?? 0, 'On-costs on wage', 0, 200);
+    // Loaded rate = wage plus any on-costs the user enters (super, leave, overhead). Zero by default.
+    const rate = wage * (1 + oncost / 100);
     const reclaim = pct(v.reclaimPct ?? 0, 'Reclaimable share of admin time');
     const cash = pct(v.cashPct ?? 0, 'Share of recovered time turned into cash');
     const reinvest = pct(v.reinvestPct ?? 0, 'Share of recovered time reinvested');
@@ -442,6 +445,8 @@
     return {
       metric: capacityValue,
       capacityValue,
+      loadedRate: rate,
+      weeksPerMonth: WEEKS_PER_MONTH,
       recoveredHoursPerMonth: reclaimedHours,
       recoveredValue,
       cashSavings,
@@ -674,11 +679,21 @@
   // ---------------------------------------------------------------- #30 invoice collection
   // Ageing is a share of one month's billing still unpaid. Collection shares are
   // the user's own assumptions. Moving money earlier is not new revenue.
+  // Ageing buckets count days since the invoice was issued. Terms are the days allowed
+  // before an invoice is due. A bucket counts as beyond terms only when it starts after
+  // the terms day, so a bucket that straddles the due date is not counted (decision on
+  // the PR). Cash timing splits the 13-week expected cash into receipts within 4 weeks
+  // and weeks 5 to 13, using one share the user enters.
   const AGEING = ['d0_30', 'd31_60', 'd61_90', 'd90'];
+  const AGEING_START = { d0_30: 0, d31_60: 31, d61_90: 61, d90: 91 };
+  const TERMS_DEFAULT = 30;
   function invoiceCollection(v) {
     const invoices = nonNeg(v.invoices, 'Invoices per month');
     const avg = nonNeg(v.avg, 'Average invoice');
     const chase = nonNeg(v.chase, 'Hours/month chasing payment');
+    const terms = nonNeg(v.terms ?? TERMS_DEFAULT, 'Payment terms in days');
+    if (terms > 120) fail('Payment terms must be 120 days or fewer.');
+    const within4 = pct(v.within4 ?? 60, 'Share of expected cash received within 4 weeks');
     const shares = {};
     const collect = {};
     let total = 0;
@@ -691,18 +706,24 @@
     const billed = invoices * avg;
     const outstanding = {};
     let cashIn13Weeks = 0;
+    let beyondTerms = 0;
     for (const key of AGEING) {
       outstanding[key] = billed * shares[key] / 100;
       cashIn13Weeks += outstanding[key] * collect[key] / 100;
+      if (AGEING_START[key] > terms) beyondTerms += outstanding[key];
     }
-    const beyondTerms = outstanding.d31_60 + outstanding.d61_90 + outstanding.d90;
+    const cashIn4Weeks = cashIn13Weeks * within4 / 100;
+    const cashWeeks5To13 = cashIn13Weeks - cashIn4Weeks;
     const notCollectedIn13Weeks = billed * total / 100 - cashIn13Weeks;
     return {
       metric: beyondTerms,
       billed,
+      terms,
       outstanding,
       beyondTerms,
       cashIn13Weeks,
+      cashIn4Weeks,
+      cashWeeks5To13,
       notCollectedIn13Weeks,
       chaseHours: chase,
       hoursPerThousandBeyondTerms: beyondTerms > 0 ? chase / (beyondTerms / 1000) : null,
@@ -712,6 +733,8 @@
         ['Unpaid 31-60 days', outstanding.d31_60],
         ['Unpaid 61-90 days', outstanding.d61_90],
         ['Unpaid 90+ days', outstanding.d90],
+        ['Expected cash within 4 weeks (your assumptions)', cashIn4Weeks],
+        ['Expected cash in weeks 5 to 13 (your assumptions)', cashWeeks5To13],
         ['Expected cash within 13 weeks (your assumptions)', cashIn13Weeks]
       ]
     };

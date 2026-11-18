@@ -35,6 +35,8 @@ export function formulaCases(C) {
     'leads/reduction': () => C.leadConversion({ leads: 64, value: 289.5, contribPct: 40, base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80, alt_contacted: 85, alt_qualified: 45, alt_booked: 60, alt_completed: 70 }),
     'invoice/default': () => C.invoiceCollection({ invoices: 80, avg: 520, chase: 7, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3, collect_d0_30: 95, collect_d31_60: 80, collect_d61_90: 50, collect_d90: 20 }),
     'invoice/non-default': () => C.invoiceCollection({ invoices: 33, avg: 412.5, chase: 3.5, age_d0_30: 20, age_d31_60: 15, age_d61_90: 10, age_d90: 5, collect_d0_30: 90, collect_d31_60: 70, collect_d61_90: 40, collect_d90: 10 }),
+    'admin/oncost': () => C.adminCost({ adminHours: 12, adminRate: 40, oncostPct: 22, reclaimPct: 30, cashPct: 10, reinvestPct: 5 }),
+    'invoice/terms': () => C.invoiceCollection({ invoices: 50, avg: 380, chase: 4, terms: 45, within4: 50, age_d0_30: 20, age_d31_60: 15, age_d61_90: 10, age_d90: 5, collect_d0_30: 95, collect_d31_60: 75, collect_d61_90: 45, collect_d90: 15 }),
     'invoice/error-ageing': () => C.invoiceCollection({ invoices: 10, avg: 100, chase: 0, age_d0_30: 60, age_d31_60: 30, age_d61_90: 10, age_d90: 5 }),
     'quote/none': () => C.quoteTotals({ lines: quoteLines, discountPct: 0, taxMode: 'none', taxRate: 10 }),
     'quote/exclusive': () => C.quoteTotals({ lines: quoteLines, discountPct: 10, taxMode: 'exclusive', taxRate: 10 }),

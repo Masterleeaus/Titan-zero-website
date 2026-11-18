@@ -4,6 +4,8 @@
     "result": {
       "metric": 1949.9999999999998,
       "capacityValue": 1949.9999999999998,
+      "loadedRate": 45,
+      "weeksPerMonth": 4.333333333333333,
       "recoveredHoursPerMonth": 10.833333333333332,
       "recoveredValue": 487.49999999999994,
       "cashSavings": 0,
@@ -38,6 +40,8 @@
     "result": {
       "metric": 1701.375,
       "capacityValue": 1701.375,
+      "loadedRate": 52.35,
+      "weeksPerMonth": 4.333333333333333,
       "recoveredHoursPerMonth": 16.25,
       "recoveredValue": 850.6875,
       "cashSavings": 212.671875,
@@ -72,6 +76,8 @@
     "result": {
       "metric": 0,
       "capacityValue": 0,
+      "loadedRate": 0,
+      "weeksPerMonth": 4.333333333333333,
       "recoveredHoursPerMonth": 0,
       "recoveredValue": 0,
       "cashSavings": 0,
@@ -547,6 +553,7 @@
     "result": {
       "metric": 7488,
       "billed": 41600,
+      "terms": 30,
       "outstanding": {
         "d0_30": 0,
         "d31_60": 4160,
@@ -555,6 +562,8 @@
       },
       "beyondTerms": 7488,
       "cashIn13Weeks": 4617.6,
+      "cashIn4Weeks": 2770.56,
+      "cashWeeks5To13": 1847.0400000000004,
       "notCollectedIn13Weeks": 2870.3999999999996,
       "chaseHours": 7,
       "hoursPerThousandBeyondTerms": 0.9348290598290597,
@@ -580,6 +589,14 @@
           1248
         ],
         [
+          "Expected cash within 4 weeks (your assumptions)",
+          2770.56
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          1847.0400000000004
+        ],
+        [
           "Expected cash within 13 weeks (your assumptions)",
           4617.6
         ]
@@ -591,6 +608,7 @@
     "result": {
       "metric": 4083.75,
       "billed": 13612.5,
+      "terms": 30,
       "outstanding": {
         "d0_30": 2722.5,
         "d31_60": 2041.875,
@@ -599,6 +617,8 @@
       },
       "beyondTerms": 4083.75,
       "cashIn13Weeks": 4492.125,
+      "cashIn4Weeks": 2695.275,
+      "cashWeeks5To13": 1796.85,
       "notCollectedIn13Weeks": 2314.125,
       "chaseHours": 3.5,
       "hoursPerThousandBeyondTerms": 0.8570554025099479,
@@ -624,8 +644,107 @@
           680.625
         ],
         [
+          "Expected cash within 4 weeks (your assumptions)",
+          2695.275
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          1796.85
+        ],
+        [
           "Expected cash within 13 weeks (your assumptions)",
           4492.125
+        ]
+      ]
+    }
+  },
+  "admin/oncost": {
+    "ok": true,
+    "result": {
+      "metric": 2537.6,
+      "capacityValue": 2537.6,
+      "loadedRate": 48.8,
+      "weeksPerMonth": 4.333333333333333,
+      "recoveredHoursPerMonth": 15.6,
+      "recoveredValue": 761.28,
+      "cashSavings": 76.12799999999999,
+      "reinvestedValue": 38.06399999999999,
+      "unassignedValue": 647.0880000000001,
+      "rows": [
+        [
+          "Admin time value (all hours)",
+          2537.6
+        ],
+        [
+          "Recovered capacity value",
+          761.28
+        ],
+        [
+          "Cash savings (only the share you enter)",
+          76.12799999999999
+        ],
+        [
+          "Reinvested in other work (not cash)",
+          38.06399999999999
+        ],
+        [
+          "Recovered but not yet assigned",
+          647.0880000000001
+        ]
+      ]
+    }
+  },
+  "invoice/terms": {
+    "ok": true,
+    "result": {
+      "metric": 2850,
+      "billed": 19000,
+      "terms": 45,
+      "outstanding": {
+        "d0_30": 3800,
+        "d31_60": 2850,
+        "d61_90": 1900,
+        "d90": 950
+      },
+      "beyondTerms": 2850,
+      "cashIn13Weeks": 6745,
+      "cashIn4Weeks": 3372.5,
+      "cashWeeks5To13": 3372.5,
+      "notCollectedIn13Weeks": 2755,
+      "chaseHours": 4,
+      "hoursPerThousandBeyondTerms": 1.4035087719298245,
+      "rows": [
+        [
+          "Monthly billing represented",
+          19000
+        ],
+        [
+          "Unpaid 0-30 days",
+          3800
+        ],
+        [
+          "Unpaid 31-60 days",
+          2850
+        ],
+        [
+          "Unpaid 61-90 days",
+          1900
+        ],
+        [
+          "Unpaid 90+ days",
+          950
+        ],
+        [
+          "Expected cash within 4 weeks (your assumptions)",
+          3372.5
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          3372.5
+        ],
+        [
+          "Expected cash within 13 weeks (your assumptions)",
+          6745
         ]
       ]
     }
