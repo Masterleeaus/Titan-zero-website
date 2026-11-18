@@ -57,6 +57,19 @@
     count: (label, min = 0) => ({ kind: 'number', label, min, max: MAX_COUNT }),
   };
 
+  // Funnel stages and ageing buckets used by the live forms (#105). Defined before RULES, which reads them.
+  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
+  const FUNNEL_LABELS = {
+    contacted: 'leads contacted', qualified: 'contacted leads qualified',
+    booked: 'qualified leads booked', completed: 'booked jobs completed',
+  };
+  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
+  const AGEING_LABELS = {
+    d0_30: 'Unpaid from this month (0-30 days)', d31_60: 'Unpaid 31-60 days',
+    d61_90: 'Unpaid 61-90 days', d90: 'Unpaid over 90 days',
+  };
+  const COLLECT_LABELS = { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90: '90+ days' };
+
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
@@ -90,16 +103,20 @@
       convert: rule.percent('Likely conversion if answered'),
       jobValue: rule.money('Average job value'),
     },
+    // Lead conversion and invoice collection use the live four-stage funnel and ageing buckets (#105).
+    // Labels match the visible form fields so refusal messages name what the user sees.
     leads: {
       leads: rule.count('Leads per month'),
-      current: rule.percent('Current conversion'),
-      target: rule.percent('Scenario conversion'),
       value: rule.money('Average customer/job value'),
+      contribPct: rule.percent('Contribution margin on that work'),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['base_' + stage, rule.percent('Current: ' + FUNNEL_LABELS[stage])])),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['alt_' + stage, rule.percent('Scenario: ' + FUNNEL_LABELS[stage])])),
     },
     invoice: {
       invoices: rule.count('Invoices per month'),
       avg: rule.money('Average invoice'),
-      overdue: rule.percent('Beyond-terms share'),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['age_' + bucket, rule.percent(AGEING_LABELS[bucket])])),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['collect_' + bucket, rule.percent('Expected collection within 13 weeks: ' + COLLECT_LABELS[bucket])])),
       chase: rule.number('Hours/month chasing payment', 0, 744),
     },
     jobcost: {
@@ -360,8 +377,6 @@
   // ---- Local profile schema (#43/#44) -------------------------------------------
   // Every assumption a live tool persists must survive migration. These are the extra
   // fields on the public tool forms (shares, rates, ageing buckets, funnel stages).
-  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
-  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
     'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',

@@ -186,9 +186,10 @@ for(const[key,value]of new FormData(form).entries()){const field=definition.fiel
 for(const[key,value]of Object.entries(values)){if(typeof value==='number'&&(!Number.isFinite(value)||value<0)){showCalculatorError(result,definition,'Enter zero or a positive number for '+key+'.');return;}}
 // Shared rules (#42): blanks, NaN, infinity, out-of-range values and over-precise money are refused
 // before any result. Only tools whose form fields match the engine rules are checked here.
+// Validate the raw form strings: Number('') is 0, so blanks must be refused before conversion (#105).
 const rules=engine.RULES[active];
 if(rules&&Object.keys(rules).every(key=>key in values)){
-const checked=engine.validate(active,values);
+const checked=engine.validate(active,Object.fromEntries(new FormData(form).entries()));
 if(!checked.ok){showCalculatorError(result,definition,checked.errors.map(item=>item.message).join(' '));return;}
 }
 let outcome;
