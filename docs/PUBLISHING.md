@@ -38,6 +38,15 @@ This repository is a static site. It has no server-side code. The live host must
 4. Load each changed page in a browser at a desktop width and a phone width, with no console errors and no horizontal scrolling.
 5. Commit, then publish by copying the repository contents to the host (without `.git`).
 
+One command reproduces every published copy, including the Front Desk pages: `node scripts/site-gate.mjs sync`. Then confirm the gate and its tests pass (Node 22, no install needed):
+
+```bash
+node scripts/site-gate.mjs sync && node scripts/site-gate.mjs check
+node --test tests/site-gate-drift.test.mjs tests/site-gate-jsonld.test.mjs
+```
+
+The `Website release gate` workflow fails on any drift, missing sitemap entry, broken local link, in-page link without a target, or unapproved price. The gate does not yet run a browser: viewport, keyboard and no-JS checks are manual (see step 4).
+
 ## Rollback
 
 - Each release is a commit on `main`. To roll back, check out the previous commit, copy its files to the host, and confirm the homepage and a sample app page load.

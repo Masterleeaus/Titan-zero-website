@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;background:#0b0f1d;font-family:Inter,Arial,Helvetica,sans-serif;color:#f4f7fc}
+.frame{position:absolute;inset:40px;border:1px solid #33255a;border-radius:22px;background:linear-gradient(145deg,#120f24,#0c1020);overflow:hidden}
+.bar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:1px solid #33255a;background:#0f0c1f}
+.bar strong{font-size:22px;letter-spacing:.02em}
+.tag{display:inline-block;background:#A648F9;color:#140a24;font-weight:800;font-size:16px;letter-spacing:.08em;padding:8px 14px;border-radius:999px}
+.grid{position:absolute;left:40px;right:40px;top:104px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px}
+.role{background:#171231;border:1px solid #3a2b66;border-radius:16px;padding:22px 22px 24px;min-height:300px;display:flex;flex-direction:column}
+.role .k{font-size:14px;letter-spacing:.14em;color:#c9a9ff;text-transform:uppercase;font-weight:700}
+.role h3{margin:10px 0 14px;font-size:24px;font-weight:700}
+.line{font-size:18px;color:#cfc6e6;padding:9px 0;border-top:1px solid #2e2352}
+.state{margin-top:auto;font-size:17px;font-weight:700;color:#e4d7ff}
+.wait{background:#2a1a4f;border:1px solid #A648F9;border-radius:12px;padding:12px 14px;margin-top:10px;font-size:18px;color:#f0e7ff}
+.queue{position:absolute;left:40px;right:40px;bottom:96px;background:#141029;border:1px solid #3a2b66;border-radius:16px;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:24px}
+.queue p{margin:0;font-size:21px;color:#e6dcff;line-height:1.45}
+.pill{font-size:18px;font-weight:700;padding:12px 18px;border-radius:10px;background:#A648F9;color:#140a24;white-space:nowrap}
+.pill.alt{background:transparent;border:1px solid #6f55a8;color:#e6dcff}
+.note{position:absolute;left:40px;right:40px;bottom:30px;font-size:19px;color:#b8acd6}
+</style></head>
+<body>
+<div class="frame">
+  <div class="bar"><strong>Front Desk agent team</strong><span class="tag">CONCEPTUAL DEMONSTRATION</span></div>
+  <div class="grid">
+    <div class="role"><div class="k">Enquiries</div><h3>Reply to new enquiries</h3>
+      <div class="line">Asks for postcode and job type</div><div class="line">Sends a quote-intake form</div><div class="state">Working</div></div>
+    <div class="role"><div class="k">Booking</div><h3>Propose times</h3>
+      <div class="line">Checks calendar for open slots</div><div class="line">Holds a slot for the owner</div><div class="wait">Waiting for owner approval</div></div>
+    <div class="role"><div class="k">Follow-up</div><h3>Approved reminders</h3>
+      <div class="line">Drafts a reminder message</div><div class="line">Sends only after approval</div><div class="state">Standing by</div></div>
+  </div>
+  <div class="queue"><p><b>Approval queue (sample):</b> one booking hold is waiting for your decision. Nothing is confirmed until you approve it.</p><div style="display:flex;gap:12px"><span class="pill">Approve</span><span class="pill alt">Decline</span></div></div>
+  <div class="note">Illustration only. Shows how roles and approvals are planned to work, not a live product screen.</div>
+</div>
+</body></html>
