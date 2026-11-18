@@ -41,6 +41,19 @@ export function pageEntries(root = ROOT) {
     });
 }
 
+// Free plugin copy (issue #69): Front Desk and plugin pages must not describe the free plugin as a
+// trial or sandbox, because WordPress.org treats capped or trial-style free plugins as trialware.
+// Returns one problem per trial-framing word found in visible text on those pages.
+export function freePluginCopyProblems(html, file = 'page') {
+  if (!PLUGIN_PRICE_PAGE.test(file)) return [];
+  const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+  const problems = [];
+  for (const m of text.matchAll(/\b(trial|trials|trialware|sandbox)\b/gi)) {
+    problems.push(`${file}: free plugin copy must not describe a trial or sandbox ("${m[1]}")`);
+  }
+  return problems;
+}
+
 // Structured data (issue #7): every JSON-LD block must parse, must not claim ratings or reviews
 // (no testimonials or ratings are approved), and Front Desk / plugin pages may only name approved prices.
 export function jsonLdProblems(html, file = 'page') {
@@ -153,6 +166,8 @@ export function check(root = ROOT) {
     for (const img of html.match(/<img\b[^>]*>/gi) || []) {
       if (!/\balt=/.test(img)) fail(`${p.file}: image without alt: ${img.slice(0, 80)}`);
     }
+    // 6b. Free plugin copy must not read as a trial or sandbox (issue #69).
+    for (const problem of freePluginCopyProblems(html, p.file)) fail(problem);
     // 6. Plugin, Front Desk and At.Work app pages may only show approved A$ amounts.
     if (PLUGIN_PRICE_PAGE.test(p.file)) {
       for (const m of html.matchAll(/A\$(\d+)/g)) {
@@ -160,6 +175,10 @@ export function check(root = ROOT) {
       }
     }
   }
+
+  // 4b. The Front Desk hub keeps the no-licence-key promise visible (issue #69).
+  const hubText = read('pages/frontdesk.html').replace(/<[^>]+>/g, ' ');
+  if (!/no licence key/i.test(hubText)) fail('pages/frontdesk.html must keep the "no licence key" promise visible');
 
   // 5. Sitemap: every indexable page listed, every entry resolves to a file.
   const sitemap = read('sitemap.xml');
