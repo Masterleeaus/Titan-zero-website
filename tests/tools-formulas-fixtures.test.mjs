@@ -2,6 +2,8 @@
 // tests/fixtures/live-formulas.json was recorded from the formulas that the live pages
 // used before they moved into assets/tools-engine.js. Every case must still produce the
 // same output, deep-equal, and every error case must keep its message.
+// The jobcost/* entries were re-recorded for #32: job-cost money is now whole cents per line
+// (as the service pricing tool) and the target price is rounded up to the cent.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

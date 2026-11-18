@@ -313,7 +313,12 @@ const deleteButton=root.querySelector('[data-quote-delete]');if(deleteButton)del
 const printButton=root.querySelector('[data-quote-print]');if(printButton)printButton.addEventListener('click',()=>window.print());
 form.addEventListener('input',render);form.addEventListener('change',render);
 form.addEventListener('submit',event=>{event.preventDefault();render();});
-addLine('Service',1,0);addLine();render();refreshSaved('');
+const incoming=takeQuoteTransfer();
+if(incoming){lines.replaceChildren();addLine(incoming.description||'Service',1,incoming.unitPrice);addLine();say('A price from the job-cost sheet was added as a line. Check it before saving.');}
+else{addLine('Service',1,0);addLine();}
+render();refreshSaved('');
+// Reads and clears the one-off line sent from the job-cost sheet. Stored on this device only.
+function takeQuoteTransfer(){try{const raw=localStorage.getItem(calc.QUOTE_TRANSFER_KEY);if(raw===null)return null;localStorage.removeItem(calc.QUOTE_TRANSFER_KEY);return calc.readQuoteTransfer(raw);}catch(_){return null;}}
 }
 function initializeJobCost(root){
 const calc=engine.formulas;
@@ -348,6 +353,10 @@ const rows=[...c.rows,['Target price (ex GST)',c.targetPrice===null?'Enter a tar
 for(const[label,value]of rows){list.append(textNode('dt',label),textNode('dd',typeof value==='number'?money(value):String(value)));}
 output.append(list);
 output.append(textNode('p','Costs are kept separate from the price. GST is not included in any cost or in the price shown here. The target price is an arithmetic scenario, not a recommendation.','fine-print'));
+const send=document.createElement('button');send.type='button';send.className='button button-secondary';send.textContent='Send price to the quote builder';
+const sendStatus=textNode('p','Sends the customer price ex GST as one quote line. It stays on this device and is not put in a link.','fine-print');sendStatus.setAttribute('role','status');
+send.addEventListener('click',()=>{try{const rec=calc.quoteTransferRecord(c,f('service').value.trim(),new Date().toISOString());localStorage.setItem(calc.QUOTE_TRANSFER_KEY,JSON.stringify(rec));sendStatus.textContent='Price sent. Open the quote builder on this device to review the line.';}catch(error){sendStatus.textContent=error.message;}});
+output.append(send,sendStatus);
 const context={tool:'Job-cost sheet',vertical:currentIndustry().name,business:businessName,service:f('service').value.trim(),result:'Total cost '+money(c.totalCost)+'; price (ex GST) '+money(c.price)+'; margin '+(c.marginPct===null?'n/a':c.marginPct.toFixed(1)+'%')+'.',calculation:`Labour ${money(c.labour)}; direct costs ${money(c.directCost)}; contingency ${money(c.contingency)}; overhead ${money(c.overhead)}.`};
 addHandoffButtons(output,context);
 });
