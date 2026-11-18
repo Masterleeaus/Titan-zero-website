@@ -22,6 +22,7 @@ This repository is a static site. It has no server-side code. The live host must
 | `/industries/<slug>/` | `pages/industry-<slug>.html` |
 | `/frontdesk/` | `pages/frontdesk.html` |
 | `/frontdeskpro/`, `/frontdeskai/`, `/frontdeskagent/` | `pages/frontdeskpro.html`, `pages/frontdeskai.html`, `pages/frontdeskagent.html` |
+| `/frontdesk-compatibility/`, `/frontdesk-billing/`, `/frontdesk-troubleshooting/`, `/frontdesk-status/`, `/frontdesk-privacy/` | `pages/frontdesk-compatibility.html`, `pages/frontdesk-billing.html`, `pages/frontdesk-troubleshooting.html`, `pages/frontdesk-status.html`, `pages/frontdesk-privacy.html` (support topics, #91) |
 
 ## Hosting requirements
 
