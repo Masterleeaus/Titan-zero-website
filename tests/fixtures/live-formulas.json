@@ -459,8 +459,11 @@
       "metric": 1512,
       "missedEnquiries": 14.4,
       "opportunity": 1512,
+      "followedUp": 0,
+      "recoveredJobs": 0,
       "recoverable": 0,
       "recoverableContribution": 0,
+      "blendedCostPerFollowUp": 0,
       "commsCost": 0,
       "netRecoveryContribution": 0,
       "rows": [
@@ -469,19 +472,27 @@
           "14.4"
         ],
         [
-          "Opportunity exposed (before follow-up)",
+          "Opportunity exposed before follow-up (missed x likely conversion x value)",
           1512
         ],
         [
-          "Recoverable if followed up (assumed share)",
+          "Missed enquiries followed up (assumed reach)",
+          "0.0"
+        ],
+        [
+          "Recovered bookings (assumed recovery conversion)",
+          "0.0"
+        ],
+        [
+          "Recoverable value (assumed, not guaranteed)",
           0
         ],
         [
-          "Contribution on the recoverable share",
+          "Contribution on the recoverable value",
           0
         ],
         [
-          "External messaging cost",
+          "External messaging cost (weighted by channel)",
           0
         ],
         [
@@ -497,8 +508,11 @@
       "metric": 1243.458995625,
       "missedEnquiries": 10.395,
       "opportunity": 1243.458995625,
+      "followedUp": 4.1579999999999995,
+      "recoveredJobs": 1.715175,
       "recoverable": 497.38359825,
       "recoverableContribution": 323.29933886249995,
+      "blendedCostPerFollowUp": 1.2,
       "commsCost": 4.989599999999999,
       "netRecoveryContribution": 318.30973886249996,
       "rows": [
@@ -507,19 +521,27 @@
           "10.4"
         ],
         [
-          "Opportunity exposed (before follow-up)",
+          "Opportunity exposed before follow-up (missed x likely conversion x value)",
           1243.458995625
         ],
         [
-          "Recoverable if followed up (assumed share)",
+          "Missed enquiries followed up (assumed reach)",
+          "4.2"
+        ],
+        [
+          "Recovered bookings (assumed recovery conversion)",
+          "1.7"
+        ],
+        [
+          "Recoverable value (assumed, not guaranteed)",
           497.38359825
         ],
         [
-          "Contribution on the recoverable share",
+          "Contribution on the recoverable value",
           323.29933886249995
         ],
         [
-          "External messaging cost",
+          "External messaging cost (weighted by channel)",
           4.989599999999999
         ],
         [

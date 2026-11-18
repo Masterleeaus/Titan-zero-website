@@ -29,8 +29,10 @@ export function formulaCases(C) {
     'capacity/default': () => C.capacityPlanner({ workers: 4, hours: 30, duration: 2.5, currentJobs: 150, daysPerWeek: 5, leaveDays: 0, nonbillPct: 0, travelMin: 0, cancelPct: 0 }),
     'capacity/non-default': () => C.capacityPlanner({ workers: 3, hours: 40, duration: 1.5, currentJobs: 90, daysPerWeek: 4.5, leaveDays: 10, nonbillPct: 12.5, travelMin: 20, cancelPct: 7 }),
     'capacity/error-leave': () => C.capacityPlanner({ workers: 2, hours: 30, duration: 2, currentJobs: 10, daysPerWeek: 5, leaveDays: 300, nonbillPct: 0, travelMin: 0, cancelPct: 0 }),
-    'calls/default': () => C.missedEnquiry({ calls: 120, missed: 12, convert: 30, jobValue: 350, reachPct: 0, contribPct: 100, commsPerEnquiry: 0 }),
-    'calls/non-default': () => C.missedEnquiry({ calls: 77, missed: 13.5, convert: 41.25, jobValue: 289.99, reachPct: 40, contribPct: 65, commsPerEnquiry: 1.2 }),
+    // #28: recovery conversion is set equal to likely conversion, and the old flat messaging cost is
+    // entered as an SMS cost on 100% of follow-ups. These inputs reproduce the pre-#28 scenario.
+    'calls/default': () => C.missedEnquiry({ calls: 120, missed: 12, convert: 30, jobValue: 350, reachPct: 0, recoveryPct: 30, contribPct: 100, smsPct: 0, smsCost: 0 }),
+    'calls/non-default': () => C.missedEnquiry({ calls: 77, missed: 13.5, convert: 41.25, jobValue: 289.99, reachPct: 40, recoveryPct: 41.25, contribPct: 65, smsPct: 100, smsCost: 1.2 }),
     'leads/default': () => C.leadConversion({ leads: 100, value: 450, contribPct: 100, base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80, alt_contacted: 92, alt_qualified: 50, alt_booked: 62, alt_completed: 80 }),
     'leads/reduction': () => C.leadConversion({ leads: 64, value: 289.5, contribPct: 40, base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80, alt_contacted: 85, alt_qualified: 45, alt_booked: 60, alt_completed: 70 }),
     'invoice/default': () => C.invoiceCollection({ invoices: 80, avg: 520, chase: 7, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3, collect_d0_30: 95, collect_d31_60: 80, collect_d61_90: 50, collect_d90: 20 }),

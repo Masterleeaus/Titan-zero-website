@@ -286,18 +286,56 @@ test('missed: default opportunity keeps the original definition', () => {
 });
 
 test('missed: recoverable share and contribution are separate from opportunity', () => {
-  const r = C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 50, contribPct: 40, commsPerEnquiry: 1 });
+  const r = C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 50, recoveryPct: 50, contribPct: 40, smsPct: 100, smsCost: 1 });
   close(r.opportunity, 2000);
   close(r.recoverable, 1000);
   close(r.recoverableContribution, 400);
-  close(r.commsCost, 20 * 0.5 * 1);
+  close(r.commsCost, 10 * 1, 'follow-ups (10) x SMS cost (1)');
+  close(r.netRecoveryContribution, 390);
+});
+
+test('missed: recovery conversion is its own assumption, separate from likely conversion', () => {
+  const r = C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 50, recoveryPct: 20 });
+  close(r.followedUp, 10);
+  close(r.recoveredJobs, 2);
+  close(r.recoverable, 400);
+  assert.ok(r.recoverable <= r.opportunity, 'recoverable value cannot exceed the opportunity');
+});
+
+test('missed: recovery conversion above likely conversion is refused', () => {
+  assert.throws(() => C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 50, recoveryPct: 60 }), /cannot be higher than likely conversion/);
+});
+
+test('missed: messaging cost is the weighted average of SMS and email shares, phone callbacks are not costed', () => {
+  const r = C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 100, recoveryPct: 50, smsPct: 60, smsCost: 1, emailPct: 30, emailCost: 0.5 });
+  close(r.followedUp, 20);
+  close(r.blendedCostPerFollowUp, 0.75, 'weighted: 0.6 x 1 + 0.3 x 0.5 (phone 0.1 costs nothing)');
+  close(r.commsCost, 15);
+});
+
+test('missed: SMS and email shares that add up to more than 100% are refused', () => {
+  assert.throws(() => C.missedEnquiry({ calls: 10, missed: 10, convert: 10, jobValue: 1, smsPct: 70, emailPct: 40 }), /cannot add up to more than 100%/);
+  const edge = C.missedEnquiry({ calls: 10, missed: 10, convert: 10, jobValue: 1, reachPct: 100, smsPct: 60, emailPct: 40, smsCost: 2, emailCost: 1 });
+  close(edge.blendedCostPerFollowUp, 1.6);
+});
+
+test('missed: negative messaging cost is refused', () => {
+  assert.throws(() => C.missedEnquiry({ calls: 10, missed: 10, convert: 10, jobValue: 1, smsPct: 10, smsCost: -1 }), /Cost per SMS must be at least 0/);
+});
+
+test('missed: negative net contribution is shown, not clamped to zero', () => {
+  const r = C.missedEnquiry({ calls: 100, missed: 20, convert: 50, jobValue: 200, reachPct: 100, recoveryPct: 5, contribPct: 100, smsPct: 100, smsCost: 50 });
+  assert.ok(r.netRecoveryContribution < 0, `expected a negative net, got ${r.netRecoveryContribution}`);
 });
 
 test('missed: 0% and 100% limits are accepted, beyond them is refused', () => {
   assert.equal(C.missedEnquiry({ calls: 10, missed: 0, convert: 100, jobValue: 1 }).opportunity, 0);
   assert.equal(C.missedEnquiry({ calls: 10, missed: 100, convert: 100, jobValue: 1, reachPct: 100 }).recoverable, 10);
+  assert.equal(C.missedEnquiry({ calls: 10, missed: 100, convert: 100, jobValue: 1, reachPct: 100, recoveryPct: 0 }).recoverable, 0);
+  assert.equal(C.missedEnquiry({ calls: 10, missed: 100, convert: 100, jobValue: 1, reachPct: 100, smsPct: 100, emailPct: 0, smsCost: 0 }).commsCost, 0);
   assert.throws(() => C.missedEnquiry({ calls: 10, missed: 101, convert: 1, jobValue: 1 }), /must be 0 to 100/);
   assert.throws(() => C.missedEnquiry({ calls: 10, missed: 10, convert: 1, jobValue: 1, reachPct: -5 }), /must be 0 to 100/);
+  assert.throws(() => C.missedEnquiry({ calls: 10, missed: 10, convert: 1, jobValue: 1, reachPct: 100, smsPct: 101 }), /must be 0 to 100/);
 });
 
 // ---- #29 lead conversion
