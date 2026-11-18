@@ -95,6 +95,7 @@ test('fixture: job cost sheet baseline keeps costs and price separate and refuse
   assert.equal(out.directCost, 180);
   assert.equal(out.totalCost, 180);
   assert.equal(out.margin, 120);
-  assert.equal(Math.round(out.targetPrice * 100) / 100, 257.14);
+  // Target price is rounded up to the cent, as the service pricing tool does (#32). 180 / 0.7 = 257.142...
+  assert.equal(out.targetPrice, 257.15);
   assert.ok(Object.keys(rules).every((k) => k in base));
 });
