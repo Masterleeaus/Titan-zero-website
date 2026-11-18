@@ -37,7 +37,10 @@
   // hours x 52/12 x rate. Recovered time is a separate figure from cash savings.
   function adminCost(v) {
     const hours = nonNeg(v.adminHours, 'Admin hours each week');
-    const rate = nonNeg(v.adminRate, 'Loaded hourly cost');
+    const wage = nonNeg(v.adminRate, 'Hourly wage');
+    const oncost = num(v.oncostPct ?? 0, 'On-costs on wage', 0, 200);
+    // Loaded rate = wage plus any on-costs the user enters (super, leave, overhead). Zero by default.
+    const rate = wage * (1 + oncost / 100);
     const reclaim = pct(v.reclaimPct ?? 0, 'Reclaimable share of admin time');
     const cash = pct(v.cashPct ?? 0, 'Share of recovered time turned into cash');
     const reinvest = pct(v.reinvestPct ?? 0, 'Share of recovered time reinvested');
@@ -51,6 +54,8 @@
     return {
       metric: capacityValue,
       capacityValue,
+      loadedRate: rate,
+      weeksPerMonth: WEEKS_PER_MONTH,
       recoveredHoursPerMonth: reclaimedHours,
       recoveredValue,
       cashSavings,
