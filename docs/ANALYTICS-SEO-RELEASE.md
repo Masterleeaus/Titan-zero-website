@@ -2,6 +2,11 @@
 
 Status as of 2026-11-18. Covers what is implemented, what is planned, and how a release is checked.
 
+## 0. Status of the checks (issue #7)
+
+- Automated regression tests: `tests/site-seo-privacy.test.mjs` checks the shared SEO and Open Graph tags on every public page, that no tracking snippet is shipped, that internal links and canonicals carry no UTM parameters, and that robots.txt and the sitemap are wired.
+- Not done: consent handling, event firing, the live-host smoke test (section 7), and a decision on the `/frontdesk*` links that already appear on 65 published pages.
+
 ## 1. Analytics: current state
 
 - No analytics script is installed. A repository search for `gtag`, `googletagmanager`, `google-analytics`, `plausible` and `utm_` finds nothing in the HTML or JavaScript.
