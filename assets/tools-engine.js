@@ -522,11 +522,72 @@
     return { profile: next, applied };
   }
 
+  // ---- Explicit transfer flows (#44) ----------------------------------------------------
+  // Each flow is a named contract: which source tool hands which assumption keys to which
+  // target tool. A transfer only starts from a validated import for the same service type,
+  // only carries the keys listed for that flow, and only runs when the user chooses it.
+  const AGEING_AND_COLLECT = [
+    'age_d0_30', 'age_d31_60', 'age_d61_90', 'age_d90',
+    'collect_d0_30', 'collect_d31_60', 'collect_d61_90', 'collect_d90',
+  ];
+  const TRANSFER_FLOWS = Object.freeze({
+    'job-cost-to-quote': Object.freeze({
+      label: 'Job cost to pricing and quote', from: 'job-cost-sheet', to: 'quote-builder',
+      keys: Object.freeze(['overhead', 'taxRate', 'discountPct', 'targetMarginPct']),
+    }),
+    'bookings-to-capacity': Object.freeze({
+      label: 'Bookings to capacity', from: 'booking-revenue', to: 'capacity-planner',
+      keys: Object.freeze(['duration', 'daysPerWeek', 'leaveDays', 'nonbillPct', 'travelMin', 'cancelPct']),
+    }),
+    'receivables-to-cash-flow': Object.freeze({
+      label: 'Receivables to cash flow', from: 'invoice-collection', to: 'cash-flow-forecast',
+      keys: Object.freeze(AGEING_AND_COLLECT),
+    }),
+    'leads-to-follow-up': Object.freeze({
+      label: 'Leads to follow-up', from: 'lead-conversion', to: 'customer-response',
+      keys: Object.freeze(['reachPct', 'commsPerEnquiry', 'contribPct', 'missed', 'convert']),
+    }),
+  });
+
+  // Plans one transfer from a validated import. Returns { ok:true, flow, applied, missing }
+  // with the exact values that would be applied, or { ok:false, errors }. Nothing is changed here.
+  function planTransfer(flowId, validated, targetVertical) {
+    const flow = Object.prototype.hasOwnProperty.call(TRANSFER_FLOWS, flowId) ? TRANSFER_FLOWS[flowId] : null;
+    if (!flow) return { ok: false, errors: [{ key: 'flow', message: 'Unknown transfer.' }] };
+    if (!validated || validated.ok !== true || !validated.value) {
+      return { ok: false, errors: [{ key: 'file', message: 'Only a checked file can be transferred.' }] };
+    }
+    if (validated.value.vertical !== targetVertical) {
+      return { ok: false, errors: [{ key: 'vertical', message: 'This file is for a different service type.' }] };
+    }
+    const source = validated.value.assumptions;
+    const applied = [];
+    const missing = [];
+    for (const key of flow.keys) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) applied.push({ key, value: source[key] });
+      else missing.push(key);
+    }
+    return { ok: true, flow: flowId, label: flow.label, vertical: targetVertical, applied, missing };
+  }
+
+  // Applies a plan from planTransfer to the active service type only. Refuses anything not planned.
+  function applyTransfer(profile, plan) {
+    if (!plan || plan.ok !== true) throw new TypeError('Only a planned transfer can be applied');
+    const current = (profile.assumptions && profile.assumptions[plan.vertical]) || {};
+    const merged = { ...current };
+    for (const item of plan.applied) merged[item.key] = item.value;
+    return {
+      profile: { ...profile, assumptions: { ...(profile.assumptions || {}), [plan.vertical]: merged } },
+      applied: plan.applied.slice(),
+    };
+  }
+
   return {
     PROFILE_KEY, LEGACY_PROFILE_KEY, PROFILE_VERSION, MAX_AMOUNT,
     PORTABLE_FORMAT, PORTABLE_VERSION, PORTABLE_MAX_CHARS, PORTABLE_MAX_KEYS, ASSUMPTION_KEY_LIST,
     RULES, validate, toCents, fromCents, formatMoney, formatNumber,
     calculators, quote, validateLines, jobCost, splitGstInclusive, migrateProfile,
     exportAssumptions, validateImport, applyImport,
+    TRANSFER_FLOWS, planTransfer, applyTransfer,
   };
 });
