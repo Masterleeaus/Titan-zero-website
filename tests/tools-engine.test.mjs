@@ -82,16 +82,20 @@ test('invoice collection: 80 invoices x A$520 with 18% beyond terms', () => {
 test('quote builder: fractional quantity, discount and GST are rounded to cents', () => {
   const checked = E.validateLines([{ quantity: 2.5, unit: 45.1 }, { quantity: 1, unit: 100 }]);
   assert.equal(checked.ok, true);
-  const q = E.quote({ lines: checked.lines, discountPercent: 10, includeGst: true });
-  assert.equal(q.subtotal, 212.75);
-  assert.equal(q.discount, -21.28);
-  assert.equal(q.gst, 19.15);
-  assert.equal(q.total, 210.62);
+  const q = E.formulas.quoteTotals({
+    lines: checked.lines.map((l) => ({ description: '', quantity: l.quantity, unitPrice: l.unit })),
+    discountPct: 10, taxMode: 'exclusive', taxRate: 10,
+  });
+  assert.equal(q.subtotalCents / 100, 212.75);
+  assert.equal(q.discountCents / 100, 21.28);
+  assert.equal(q.gstCents / 100, 19.15);
+  assert.equal(q.totalCents / 100, 210.62);
 });
 
 test('quote builder: zero discount and GST off leave the subtotal as the total', () => {
-  const q = E.quote({ lines: [{ quantity: 3, unit: 0.1 }], discountPercent: 0, includeGst: false });
-  assert.equal(q.total, 0.3);
+  const q = E.formulas.quoteTotals({ lines: [{ description: '', quantity: 3, unitPrice: 0.1 }], discountPct: 0, taxMode: 'none' });
+  assert.equal(q.totalCents / 100, 0.3);
+  assert.equal(q.gstCents, 0);
 });
 
 test('GST inclusive totals split into ex-GST and GST amounts', () => {
@@ -104,12 +108,15 @@ test('job cost sheet: labour, overhead, negative contribution and target price',
     workers: 2, hours: 8, rate: 60, materials: 150, travel: 30, other: 20, overhead: 100, price: 900, target: 40,
   });
   assert.equal(v.ok, true);
-  const c = E.jobCost(v.values);
+  // Two workers for 8 hours at A$60 is one labour line of 16 hours.
+  const c = E.formulas.jobCostSheet({
+    roles: [{ hours: 16, rate: 60 }], materials: 150, equipment: 20, travel: 30, overhead: 100, price: 900, targetMarginPct: 40,
+  });
   assert.equal(c.labour, 960);
-  assert.equal(c.direct, 1160);
-  assert.equal(c.total, 1260);
-  assert.equal(c.contribution, -360);
-  assert.equal(c.marginPercent, -40);
+  assert.equal(c.directCost, 1160);
+  assert.equal(c.totalCost, 1260);
+  assert.equal(c.margin, -360);
+  assert.equal(c.marginPct, -40);
   assert.equal(c.targetPrice, 2100);
 });
 
@@ -119,8 +126,8 @@ test('all 11 public calculator tools have validation rules or a calculator', () 
   for (const key of ['admin', 'hire', 'breakeven', 'profit', 'capacity', 'calls', 'leads', 'invoice']) {
     assert.equal(typeof E.calculators[key], 'function', key + ' calculator');
   }
-  assert.equal(typeof E.quote, 'function');
-  assert.equal(typeof E.jobCost, 'function');
+  assert.equal(typeof E.formulas.quoteTotals, 'function');
+  assert.equal(typeof E.formulas.jobCostSheet, 'function');
   const pages = ['admin-cost', 'should-i-hire', 'break-even', 'job-profitability', 'capacity-planner', 'missed-calls',
     'lead-conversion', 'invoice-collection', 'quote-builder', 'job-cost-sheet', 'checklist-generator'];
   assert.equal(pages.length, 11);
@@ -153,10 +160,11 @@ test('validation of quote lines and discount bounds', () => {
   assert.equal(E.validateLines([{ quantity: 1, unit: 'x' }]).ok, false);
 });
 
-test('very large amounts that cannot be exact are refused rather than rounded', () => {
-  assert.throws(() => E.quote({
-    lines: Array.from({ length: 10 }, () => ({ quantity: 10000, unit: 1e9 })),
-  }), RangeError);
+test('very large quotes that cannot be exact are refused rather than rounded', () => {
+  assert.throws(() => E.formulas.quoteTotals({
+    lines: Array.from({ length: 10 }, () => ({ description: '', quantity: 10000, unitPrice: 1e9 })),
+    taxMode: 'none',
+  }), /too large to calculate exactly/);
 });
 
 test('money formatting: en-AU grouping, two decimals, true minus sign', () => {

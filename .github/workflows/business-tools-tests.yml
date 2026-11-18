@@ -4,7 +4,6 @@ on:
     paths:
       - 'assets/tools.js'
       - 'scripts/test-break-even.mjs'
-      - 'assets/tool-calcs.js'
       - 'tests/**'
       - 'pages/tool-*.html'
       - '.github/workflows/business-tools-tests.yml'
@@ -13,7 +12,6 @@ on:
     paths:
       - 'assets/tools.js'
       - 'scripts/test-break-even.mjs'
-      - 'assets/tool-calcs.js'
       - 'tests/**'
       - 'pages/tool-*.html'
       - '.github/workflows/business-tools-tests.yml'

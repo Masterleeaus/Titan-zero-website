@@ -7,7 +7,6 @@ on:
       - 'assets/site.js'
       - 'pages/tool-*.html'
       - 'tools/**'
-      - 'assets/tool-calcs.js'
       - 'scripts/check-tool-parity.mjs'
       - 'scripts/check-tool-a11y.mjs'
       - 'scripts/tools-dom-smoke.cjs'
