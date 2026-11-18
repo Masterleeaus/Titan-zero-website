@@ -440,11 +440,11 @@ const title=root.querySelector('[data-checklist-title]'),job=root.querySelector(
 const progressEl=root.querySelector('[data-checklist-progress]'),signOff=root.querySelector('[data-checklist-signoff]');
 const initial=industryById[query.get('industry')]?query.get('industry'):'cleaning';
 for(const industry of verticalOptions){const option=document.createElement('option');option.value=industry.id;option.textContent=industry.name;option.selected=industry.id===initial;select.append(option);}
-function readDraft(){try{const d=JSON.parse(localStorage.getItem(CHECKLIST_DRAFT_KEY)||'null');return d&&d.state&&Array.isArray(d.state.tasks)?d.state:null;}catch(_){return null;}}
 function persist(){try{localStorage.setItem(CHECKLIST_DRAFT_KEY,JSON.stringify({savedAt:new Date().toISOString(),state}));}catch(_){}}
 let state;
-const draft=readDraft();
-if(draft&&draft.industry===initial){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
+let draft=null;
+try{draft=calc.parseChecklistDraft(localStorage.getItem(CHECKLIST_DRAFT_KEY),initial,taskLists);}catch(_){draft=null;}
+if(draft){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
 else{state={...calc.emptyChecklist(initial),tasks:calc.templateTasks(initial,taskLists,TEMPLATE_REVISION)};}
 let nextId=1;
 function refreshProgress(){const p=calc.checklistProgress(state);if(progressEl)progressEl.textContent=`${p.done} of ${p.total} tasks done${p.complete?'. All tasks complete.':'.'}`;}
@@ -494,6 +494,14 @@ if(anyDone&&!window.confirm('Reset all ticks, notes and custom tasks for this ch
 state={...calc.emptyChecklist(state.industry),job:state.job,tasks:calc.templateTasks(state.industry,taskLists,TEMPLATE_REVISION)};persist();render();
 });
 root.querySelector('[data-print-checklist]').addEventListener('click',()=>window.print());
+const exportButton=root.querySelector('[data-export-checklist]');
+if(exportButton)exportButton.addEventListener('click',()=>{
+const text=calc.checklistText(state,(industryById[state.industry]||{}).name||state.industry);
+const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+const link=document.createElement('a');link.href=url;link.download=state.industry+'-checklist.txt';document.body.append(link);link.click();link.remove();
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+if(progressEl)progressEl.textContent='Checklist text downloaded. It was made in this browser and was not uploaded.';
+});
 render();
 }
 document.querySelectorAll('[data-quote-builder]').forEach(initializeQuoteBuilder);

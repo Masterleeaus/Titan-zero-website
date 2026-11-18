@@ -650,12 +650,102 @@ test('checklist: progress reports complete only when every task is ticked', () =
   const progress = C.checklistProgress(state); assert.equal(progress.total, 3); assert.equal(progress.done, 3); assert.equal(progress.complete, true);
 });
 
-test('checklist: all ten shipped industries have a template in site-data', () => {
+const siteData = () => {
   const site = readFileSync(new URL('../assets/site-data.js', import.meta.url), 'utf8');
-  const data = runInNewContext(site.replace('window.TITAN_SITE_CONTENT=', 'globalThis.DATA=') + '\n;globalThis.DATA', {});
+  return runInNewContext(site.replace('window.TITAN_SITE_CONTENT=', 'globalThis.DATA=') + '\n;globalThis.DATA', {});
+};
+
+test('checklist: all eleven shipped service types have a template in site-data', () => {
+  const data = siteData();
   const ids = data.industries.map(item => item.id);
-  assert.equal(ids.length, 10);
+  assert.equal(ids.length, 11);
   for (const id of ids) assert.ok(Array.isArray(data.checklists[id]) && data.checklists[id].length > 0, id + ' template');
+  assert.ok(ids.includes('painting-decorating'), 'the eleventh service type is painting and decorating');
+});
+
+test('checklist defaults: every service type has starter values for every calculator input', () => {
+  const data = siteData();
+  const required = ['adminHours', 'adminRate', 'salary', 'oncost', 'margin', 'fixed', 'price', 'variable', 'jobRevenue', 'labour',
+    'materials', 'travel', 'workers', 'hours', 'duration', 'currentJobs', 'calls', 'missed', 'convert', 'jobValue', 'leads',
+    'current', 'target', 'value', 'invoices', 'avg', 'overdue', 'chase'];
+  for (const item of data.industries) {
+    for (const key of required) assert.ok(Number.isFinite(item.defaults[key]), item.id + ' default ' + key);
+    assert.equal(item.route, '/industries/' + item.slug + '/', item.id + ' route matches slug');
+  }
+});
+
+test('checklist: the painting template is ticked, edited and reset without touching other service types', () => {
+  const data = siteData();
+  let state = { ...C.emptyChecklist('painting-decorating'), tasks: C.templateTasks('painting-decorating', data.checklists, 1) };
+  assert.equal(state.tasks.length, data.checklists['painting-decorating'].length);
+  state = C.setTaskDone(state, state.tasks[0].id, true);
+  assert.equal(C.checklistProgress(state).done, 1);
+});
+
+test('draft (#33): a saved draft restores ticks, notes, custom tasks and the sign-off note', () => {
+  let state = { ...C.emptyChecklist('cleaning'), job: 'Unit 4', tasks: C.templateTasks('cleaning', templates, 1), signOffNote: 'Client present' };
+  state = C.setTaskDone(state, state.tasks[1].id, true);
+  state = C.setTaskNote(state, state.tasks[1].id, 'Checked twice');
+  state = C.addCustomTask(state, 'Check the balcony', 'x1');
+  const raw = JSON.stringify({ savedAt: '2026-11-18T00:00:00.000Z', state });
+  const restored = C.parseChecklistDraft(raw, 'cleaning', templates);
+  const reconciled = C.reconcileChecklist(restored, 'cleaning', templates, 1);
+  assert.equal(reconciled.job, 'Unit 4');
+  assert.equal(reconciled.signOffNote, 'Client present');
+  assert.equal(reconciled.tasks[1].done, true);
+  assert.equal(reconciled.tasks[1].note, 'Checked twice');
+  assert.equal(reconciled.tasks.at(-1).text, 'Check the balcony');
+  assert.equal(reconciled.tasks.at(-1).custom, true);
+});
+
+test('draft (#33): corrupt, foreign or unknown drafts give null, so the page starts from the template', () => {
+  assert.equal(C.parseChecklistDraft(null, 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft('{not json', 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft('"a string"', 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'plumbing', tasks: [] } }), 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'cleaning', tasks: 'no' } }), 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'roofing', tasks: [] } }), 'roofing', templates), null, 'no template');
+});
+
+test('draft (#33): malformed task entries are dropped and long values are capped', () => {
+  const raw = JSON.stringify({ state: { industry: 'cleaning', job: 'x'.repeat(500), tasks: [
+    null, { id: 5, text: 'bad id' }, { id: 'a', text: '   ' }, { id: 'b', text: 'ok', done: 'yes' }, { id: 'c', text: 'y'.repeat(400), note: 'n'.repeat(900), custom: true }
+  ] } });
+  const state = C.parseChecklistDraft(raw, 'cleaning', templates);
+  assert.equal(JSON.stringify(state.tasks.map(task => task.id)), '["b","c"]');
+  assert.equal(state.tasks[0].done, false, 'a non-boolean done flag is not a tick');
+  assert.equal(state.tasks[1].text.length, 240);
+  assert.equal(state.tasks[1].note.length, 300);
+  assert.equal(state.job.length, 120);
+});
+
+test('XSS (#33): task text that looks like markup is kept as plain text in the state and in the export', () => {
+  const hostile = '<img src=x onerror=alert(1)>';
+  const raw = JSON.stringify({ state: { industry: 'cleaning', tasks: [{ id: 'h', text: hostile, done: false, note: '<b>n</b>' }] } });
+  const state = C.parseChecklistDraft(raw, 'cleaning', templates);
+  assert.equal(state.tasks[0].text, hostile);
+  const text = C.checklistText(state, 'Cleaning');
+  assert.ok(text.includes(hostile), 'the download is plain text');
+  assert.equal(text.includes('<script'), false);
+});
+
+test('export (#33): checklist text lists progress, ticks, notes and the sign-off without network or HTML', () => {
+  let state = { ...C.emptyChecklist('cleaning'), job: 'Flat 2', tasks: C.templateTasks('cleaning', templates, 1), signOffNote: 'Keys returned' };
+  state = C.setTaskDone(state, state.tasks[0].id, true);
+  state = C.setTaskNote(state, state.tasks[0].id, 'Gate code checked');
+  const text = C.checklistText(state, 'Cleaning');
+  assert.match(text, /^Service checklist: Cleaning\nJob or site: Flat 2\nProgress: 1 of 3 tasks done\./);
+  assert.match(text, /1\. \[x\] Confirm access\n {3}Evidence or note: Gate code checked/);
+  assert.match(text, /2\. \[ \] Clean rooms/);
+  assert.match(text, /Sign-off or site note: Keys returned/);
+  assert.match(text, /does not replace safe-work procedures/);
+  assert.equal(C.checklistText(C.emptyChecklist('cleaning'), 'Cleaning').includes('undefined'), false);
+});
+
+test('export (#33): the completion line says so only when every task is ticked', () => {
+  let state = { ...C.emptyChecklist('cleaning'), tasks: C.templateTasks('cleaning', templates, 1) };
+  for (const task of state.tasks) state = C.setTaskDone(state, task.id, true);
+  assert.match(C.checklistText(state, 'Cleaning'), /Progress: 3 of 3 tasks done\. All tasks complete\./);
 });
 
 test('job cost: one labour line agrees to the cent with the service pricing tool', () => {

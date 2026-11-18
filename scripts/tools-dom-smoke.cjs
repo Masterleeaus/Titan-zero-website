@@ -127,7 +127,7 @@ for (const [page, tab] of [
   check('non-calculator page writes no profile', r.stored.length === 0, r.stored.join(','));
 }
 
-// 7. Job-cost sheet to quote builder (#106): the send button carries the price only. Business and
+// 9. Job-cost sheet to quote builder (#106): the send button carries the price only. Business and
 // service text typed into the job-cost form must not reach storage or the quote line.
 function openPage(page, url, storage = {}) {
   const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
@@ -164,7 +164,7 @@ function openPage(page, url, storage = {}) {
   check('quote builder reads the transfer once', quoteWindow.localStorage.getItem('titanQuoteTransferV1') === null);
 }
 
-// 8. Assumptions file (#106): the download button reports the numbers it saved.
+// 10. Assumptions file (#106): the download button reports the numbers it saved.
 {
   const r = run('pages/tool-admin-cost.html', { fields: { adminHours: 12 } });
   const exportWindow = r.window;
@@ -178,6 +178,77 @@ function openPage(page, url, storage = {}) {
   const status = exportWindow.document.querySelector('.assumptions-tools [role=status]')?.textContent || '';
   check('download reports the saved values', /Downloaded \d+ saved values for/.test(status), status);
   check('download file is named for the service type', downloaded === 'titan-tool-assumptions-cleaning.json', downloaded);
+}
+
+// 7. Checklist generator (#33): drafts persist across a reload, a corrupt draft falls back to the
+// template, the text download is local, and markup typed into a task stays plain text.
+function runChecklist(rawDraft = null) {
+  const page = 'pages/tool-checklist-generator.html';
+  const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/gi, ''), {
+    url: 'https://titanzero.io/tools/checklist-generator/',
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+  });
+  const { window } = dom;
+  window.print = () => {};
+  window.confirm = () => true;
+  window.alert = () => {};
+  window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
+  window.URL.createObjectURL = () => 'blob:checklist-test';
+  window.URL.revokeObjectURL = () => {};
+  if (rawDraft !== null) window.localStorage.setItem('titanChecklistDraftV1', rawDraft);
+  const errors = [];
+  for (const script of ['assets/site-data.js', 'assets/site.js', 'assets/tools-engine.js', 'assets/tools.js']) {
+    const tag = new RegExp('src="/' + script.replace(/[.]/g, '\\.') + '\\?');
+    if (!tag.test(html)) continue;
+    try { window.eval(fs.readFileSync(path.join(ROOT, script), 'utf8')); } catch (error) { errors.push(script + ': ' + error.message); }
+  }
+  return { window, doc: window.document, errors };
+}
+
+{
+  const r = runChecklist();
+  const select = r.doc.querySelector('[data-checklist-vertical]');
+  const values = [...select.options].map((o) => o.value);
+  check('checklist: eleven service types are offered, including painting and decorating', values.length === 11 && values.includes('painting-decorating'), values.join(','));
+  check('checklist: page loads without script errors', r.errors.length === 0, r.errors.join('; '));
+  check('checklist: export button is present', Boolean(r.doc.querySelector('[data-export-checklist]')));
+}
+
+{
+  const r = runChecklist();
+  const first = r.doc.querySelector('[data-generated-checklist] input[type="checkbox"]');
+  first.checked = true;
+  first.dispatchEvent(new r.window.Event('change', { bubbles: true }));
+  const again = runChecklist(r.window.localStorage.getItem('titanChecklistDraftV1'));
+  const restored = again.doc.querySelector('[data-generated-checklist] input[type="checkbox"]');
+  check('checklist: a tick survives a reload from the saved draft', restored.checked === true);
+  check('checklist: progress says one task is done after reload', /1 of \d+ tasks done/.test(again.doc.querySelector('[data-checklist-progress]').textContent));
+}
+
+{
+  const r = runChecklist('{not json');
+  const items = r.doc.querySelectorAll('[data-generated-checklist] li');
+  check('checklist: a corrupt draft falls back to the cleaning template without errors', items.length > 0 && r.errors.length === 0, r.errors.join('; '));
+}
+
+{
+  const r = runChecklist();
+  const input = r.doc.querySelector('[data-custom-checklist-task]');
+  input.value = '<img src=x onerror="alert(1)">';
+  r.doc.querySelector('[data-add-checklist-task]').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  const list = r.doc.querySelector('[data-generated-checklist]');
+  check('checklist: markup typed into a task is shown as text, not as an element', list.querySelector('img') === null && list.textContent.includes('<img src=x'));
+}
+
+{
+  const r = runChecklist();
+  let downloaded = null;
+  r.window.HTMLAnchorElement.prototype.click = function click() { downloaded = { name: this.download, href: this.href }; };
+  r.doc.querySelector('[data-export-checklist]').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  check('checklist: text download is named after the service type', downloaded !== null && downloaded.name === 'cleaning-checklist.txt', JSON.stringify(downloaded));
+  check('checklist: download is announced as made in this browser', /not uploaded/.test(r.doc.querySelector('[data-checklist-progress]').textContent));
 }
 
 if (failures.length) {
