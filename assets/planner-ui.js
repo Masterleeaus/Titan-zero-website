@@ -262,36 +262,46 @@
       const globalGroup = fieldset('Settings');
       for (const f of def.globalFields) globalGroup.append(fieldWrap(f, `${slug}-g-${f.key}`, f.def, 'g'));
       fieldsEl.append(globalGroup);
-      const scroller = document.createElement('div');
-      scroller.className = 'table-scroller';
-      const table = document.createElement('table');
-      table.className = 'planner-sheet';
-      table.append(text('caption', def.rowLabel === 'Week' ? 'Enter each week. Blank cells count as zero.' : 'Enter each team. Blank cells count as zero.'));
-      const head = document.createElement('thead');
-      const hr = document.createElement('tr');
-      hr.append(text('th', def.rowLabel));
-      for (const f of def.rowFields) hr.append(text('th', f.label));
-      head.append(hr);
-      table.append(head);
-      const body = document.createElement('tbody');
-      for (let i = 0; i < def.rowCount; i++) {
-        const tr = document.createElement('tr');
-        const rowName = slug === 'cash-flow-forecast' ? `Week ${i + 1}` : `Team ${i + 1}`;
-        tr.append(text('th', rowName));
-        for (const f of def.rowFields) {
-          const td = document.createElement('td');
-          const id = `${slug}-r${i}-${f.key}`;
-          const input = fieldControl(f, id, f.def, { table: true, label: `${f.label}, ${rowName}` });
-          input.dataset.prefix = `r${i}`;
-          if (f.type !== 'text') input.required = false;
-          td.append(input);
-          tr.append(td);
+      // One sheet, or two sheets (current and scenario) when scenarioLabels is set.
+      const sheets = def.scenarioLabels ? def.scenarioLabels.map((label, si) => ({ label, prefix: si === 0 ? 'a' : 'b' })) : [{ label: null, prefix: 'r' }];
+      for (const sheet of sheets) {
+        const scroller = document.createElement('div');
+        scroller.className = 'table-scroller';
+        const table = document.createElement('table');
+        table.className = 'planner-sheet';
+        table.append(text('caption', def.rowLabel === 'Week' ? 'Enter each week. Blank cells count as zero.' : 'Enter each team. Blank cells count as zero.'));
+        const head = document.createElement('thead');
+        const hr = document.createElement('tr');
+        hr.append(text('th', def.rowLabel));
+        for (const f of def.rowFields) hr.append(text('th', f.label));
+        head.append(hr);
+        table.append(head);
+        const body = document.createElement('tbody');
+        for (let i = 0; i < def.rowCount; i++) {
+          const tr = document.createElement('tr');
+          const rowName = slug === 'cash-flow-forecast' ? `Week ${i + 1}` : `Team ${i + 1}`;
+          tr.append(text('th', rowName));
+          for (const f of def.rowFields) {
+            const td = document.createElement('td');
+            const id = `${slug}-${sheet.prefix}${i}-${f.key}`;
+            const input = fieldControl(f, id, f.def, { table: true, label: `${f.label}, ${rowName}${sheet.label ? ` (${sheet.label})` : ''}` });
+            input.dataset.prefix = `${sheet.prefix}${i}`;
+            if (f.type !== 'text') input.required = false;
+            td.append(input);
+            tr.append(td);
+          }
+          body.append(tr);
         }
-        body.append(tr);
+        table.append(body);
+        scroller.append(table);
+        if (sheet.label) {
+          const group = fieldset(sheet.label);
+          group.append(scroller);
+          fieldsEl.append(group);
+        } else {
+          fieldsEl.append(scroller);
+        }
       }
-      table.append(body);
-      scroller.append(table);
-      fieldsEl.append(scroller);
     }
 
     // ---- read and calculate ---------------------------------------------
@@ -308,27 +318,51 @@
         const b = readFields(form, def.scenarioFields, 'b');
         return { shared, a: { ...shared, ...a }, b: { ...shared, ...b } };
       }
-      // rows
+      // rows: one sheet, or current and scenario sheets that share the settings
       const globals = readFields(form, def.globalFields, 'g');
-      const rows = [];
-      for (let i = 0; i < def.rowCount; i++) {
-        const r = {};
-        for (const f of def.rowFields) {
-          const el = form.querySelector(`[data-prefix="r${i}"][name="${f.key}"]`);
-          const raw = el ? el.value : '';
-          if (f.type === 'text') r[f.key] = raw;
-          else r[f.key] = raw.trim() === '' ? 0 : Number(raw);
+      const readRows = (p) => {
+        const rows = [];
+        for (let i = 0; i < def.rowCount; i++) {
+          const r = {};
+          for (const f of def.rowFields) {
+            const el = form.querySelector(`[data-prefix="${p}${i}"][name="${f.key}"]`);
+            const raw = el ? el.value : '';
+            if (f.type === 'text') r[f.key] = raw;
+            else r[f.key] = raw.trim() === '' ? 0 : Number(raw);
+          }
+          rows.push(r);
         }
-        rows.push(r);
-      }
-      return { ...globals, rows };
+        return rows;
+      };
+      if (def.scenarioLabels) return { a: { ...globals, rows: readRows('a') }, b: { ...globals, rows: readRows('b') } };
+      return { ...globals, rows: readRows('r') };
+    }
+
+    // Copies plain text to the clipboard only when the user presses the button.
+    function handoffButton(target, lines, label) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'button button-secondary';
+      btn.textContent = label;
+      const status = text('p', '', 'fine-print');
+      status.setAttribute('role', 'status');
+      btn.addEventListener('click', async () => {
+        const body = lines.join('\n');
+        try {
+          await navigator.clipboard.writeText(body);
+          status.textContent = 'Copied. Paste it into the capacity planner yourself; nothing was sent.';
+        } catch (err) {
+          status.textContent = 'Copy is not available in this browser. Select the figures in the table and copy them by hand.';
+        }
+      });
+      target.append(btn, status);
     }
 
     function calculate(event) {
       event.preventDefault();
       if (def.mode !== 'rows' && !form.reportValidity()) return;
       const values = gather();
-      if (def.mode === 'compare') {
+      if (def.mode === 'compare' || def.scenarioLabels) {
         const a = def.calc(values.a);
         const b = def.calc(values.b);
         result.replaceChildren();
@@ -339,6 +373,10 @@
           const holder = document.createElement('section');
           holder.className = 'planner-section';
           renderResult(holder, label, r);
+          if (r.ok && r.handoff && r.handoff.length) {
+            const lines = r.handoff.map((h) => `${h.role}: ${h.people} people, ${numberFormat(1).format(h.productivePerPerson)} productive hours each per week`);
+            handoffButton(holder, [label, ...lines], `Copy ${label.toLowerCase()} hours for the capacity planner`);
+          }
           result.append(holder);
           combined.push(r.ok ? plainLine(r) : r.error);
         }

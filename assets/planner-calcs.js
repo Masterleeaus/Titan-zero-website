@@ -482,7 +482,8 @@
     const targetHours = availT * targetUtilPct / 100;
     const gapHours = prodT - targetHours;
     const trainingAtRiskC = roundC(r.trainingHours * hc * cents(r.contribPerHour));
-    return { role: r.role, hc, availT, prodT, utilisation, trainingT: r.trainingHours * hc, travelT: r.travelHours * hc, contribC, gapHours, trainingAtRiskC };
+    const prodPerPerson = productivePP;
+    return { role: r.role, hc, availT, prodT, utilisation, trainingT: r.trainingHours * hc, travelT: r.travelHours * hc, contribC, gapHours, trainingAtRiskC, prodPerPerson };
   }
 
   function staffUtilisation(v) {
@@ -498,7 +499,13 @@
     const teamUtil = tot.avail > 0 ? tot.prod / tot.avail * 100 : null;
     const monthC = roundC(tot.contribC * MONTH_FACTOR);
     const teamGap = tot.prod - tot.avail * v.targetUtilPct / 100;
+    // Handoff for the capacity planner: people and productive hours per person per week.
+    // The user copies it to the clipboard; no link or URL carries these figures.
+    const handoff = computed.filter((r) => r.hc > 0).map((r) => ({
+      role: r.role || 'Unnamed role', people: r.hc, productivePerPerson: r.prodPerPerson
+    }));
     return ok({
+      handoff,
       headline: { label: 'Team utilisation (productive ÷ available hours)', ...pct(teamUtil) },
       summary: [
         { label: 'Productive hours per week, all teams', ...hours(tot.prod) },
@@ -525,6 +532,19 @@
         'When training or travel is larger than the available hours, productive hours show as zero.'
       ]
     });
+  }
+
+  // Scenario minus current for the two staff sheets. Money is rounded to the cent once.
+  function pairStaff(a, b) {
+    if (!a.ok || !b.ok) return [];
+    const utilDiff = a.headline.v === null || b.headline.v === null
+      ? text('Not available: no available hours in one scenario')
+      : pct(Math.round((b.headline.v - a.headline.v) * 10) / 10);
+    return [
+      { label: 'Productive hours per week difference (scenario minus current)', ...hours(b.summary[0].v - a.summary[0].v) },
+      { label: 'Contribution per week difference (scenario minus current)', ...money(Math.round((b.summary[1].v - a.summary[1].v) * 100)) },
+      { label: 'Team utilisation difference, in percentage points (scenario minus current)', ...utilDiff }
+    ];
   }
 
   // ---- #40 Customer response and follow-up ---------------------------------
@@ -712,7 +732,7 @@
     'travel-route-cost': { slug: 'travel-route-cost', title: 'Travel and route cost', mode: 'compare', shared: TRAVEL_SHARED, scenarioFields: TRAVEL_SCENARIO, scenarioLabels: ['Current route', 'Route scenario'], calc: travelRoute, pair: pairTravel },
     'recurring-service-revenue': { slug: 'recurring-service-revenue', title: 'Recurring service revenue and retention', mode: 'single', fields: RECURRING_FIELDS, calc: recurringRevenue },
     'cash-flow-forecast': { slug: 'cash-flow-forecast', title: 'Thirteen-week cash flow forecast', mode: 'rows', globalFields: CASH_GLOBAL, rowFields: CASH_ROW, rowCount: 13, rowLabel: 'Week', calc: cashFlow },
-    'staff-utilisation': { slug: 'staff-utilisation', title: 'Staff utilisation and training', mode: 'rows', globalFields: STAFF_GLOBAL, rowFields: STAFF_ROW, rowCount: 3, rowLabel: 'Team', calc: staffUtilisation },
+    'staff-utilisation': { slug: 'staff-utilisation', title: 'Staff utilisation and training', mode: 'rows', globalFields: STAFF_GLOBAL, rowFields: STAFF_ROW, rowCount: 3, rowLabel: 'Team', scenarioLabels: ['Current teams', 'Scenario teams'], calc: staffUtilisation, pair: pairStaff },
     'customer-response': { slug: 'customer-response', title: 'Customer response and follow-up planner', mode: 'compare', shared: CUSTOMER_SHARED, scenarioFields: CUSTOMER_SCENARIO, scenarioLabels: ['Manual workflow', 'Configured workflow'], calc: customerResponse, pair: pairCustomer },
     'titan-zero-upgrade-planner': { slug: 'titan-zero-upgrade-planner', title: 'Titan Zero upgrade cost planner', mode: 'upgrades', upgradeKeys: UPGRADE_KEYS, fields: UPGRADE_FIELDS, calc: upgradePlan }
   };
@@ -721,6 +741,6 @@
     definitions, AI_BANDS, GST_RATE, MONTH_FACTOR, VISITS_PER_YEAR, MAX_AMOUNT,
     validate, runCash,
     servicePricing, bookingRevenue, travelRoute, recurringRevenue, cashFlow, staffUtilisation, customerResponse, upgradePlan,
-    pairBooking, pairTravel, pairCustomer
+    pairBooking, pairTravel, pairStaff, pairCustomer
   };
 });
