@@ -211,6 +211,7 @@
       notes: [
         'These are scenarios from your rates. No recovery rate is guaranteed.',
         'No-show and cancelled visits are assumed to cost nothing. Enter any travel or setup cost you still pay for them in the cost per job.',
+        'Enter the service value and job cost excluding GST. This planner adds no GST, so cash and contribution are shown before any GST you collect or remit.',
         'Scheduled and Agent services are optional next steps. Front Desk Free works without them.'
       ]
     });
