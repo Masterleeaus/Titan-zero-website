@@ -7,6 +7,7 @@
   --sc-white:#F7F7F8;
   --sc-slate:#85878B;
   --accent:var(--sc-red);
+  --accent-ink:#FF6573;
 }
 .page-desk .desk-bg-red{
   background-image:linear-gradient(rgba(13,14,18,.82),rgba(13,14,18,.92)),url("/assets/desk-bg-red-horizon.webp");
@@ -55,7 +56,7 @@
 }
 .page-desk .capability-grid h3{
   margin:0 0 12px;
-  color:var(--sc-red);
+  color:var(--accent-ink);
 }
 .page-desk .capability-grid ul{
   margin:0;
