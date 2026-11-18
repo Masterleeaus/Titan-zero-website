@@ -36,6 +36,8 @@ Agent-facing specification for the nine plugins on /plugins/. Generated from the
 
 Scheduling & Enquiries is Standard (approved). Other plugin prices are proposals until the owner confirms them.
 
+App starting price, BYO AI and API keys, incl. GST: A$49 per app per month for SoloAt.Work, SortedAt.Work and SyncedAt.Work, as shown on the homepage and in the calculator. Approved 2026-11-18 (issue 99). This is an app price, not a plugin price, so it is not in the plugin table above.
+
 
 ## Scheduling & Enquiries
 
