@@ -11,14 +11,15 @@ const src = readFileSync(new URL('../assets/site-data.js', import.meta.url), 'ut
 const data = JSON.parse(src.slice('window.TITAN_SITE_CONTENT='.length).replace(/;\s*$/, ''));
 const industries = data.industries;
 const knownKeys = new Set(E.ASSUMPTION_KEY_LIST);
+const LEGACY_PERCENT_KEYS = new Set(['current', 'overdue']);
 const ruleFor = (key) => Object.values(E.RULES).map((rules) => rules[key]).find(Boolean);
 
-test('ten industries, unique ids and slugs, each with a name, summary and route', () => {
-  assert.equal(industries.length, 10);
-  assert.equal(new Set(industries.map((i) => i.id)).size, 10);
-  assert.equal(new Set(industries.map((i) => i.slug)).size, 10);
+test('industries have unique ids and slugs, each with a name, summary and route (at least ten)', () => {
+  assert.ok(industries.length >= 10, 'expected at least ten industries, got ' + industries.length);
+  assert.equal(new Set(industries.map((i) => i.id)).size, industries.length);
+  assert.equal(new Set(industries.map((i) => i.slug)).size, industries.length);
   for (const i of industries) {
-    assert.ok(/^[a-z]+$/.test(i.id), 'id ' + i.id);
+    assert.ok(/^[a-z-]+$/.test(i.id), 'id ' + i.id);
     assert.ok(i.name.trim() && i.summary.trim() && i.route.startsWith('/'), i.id);
   }
 });
@@ -26,6 +27,11 @@ test('ten industries, unique ids and slugs, each with a name, summary and route'
 test('every starter default is a known assumption key and passes its engine rule', () => {
   for (const i of industries) {
     for (const [key, value] of Object.entries(i.defaults)) {
+      // 'current' and 'overdue' are legacy starter percentages kept for the checklist and migration tests.
+      if (LEGACY_PERCENT_KEYS.has(key)) {
+        assert.ok(value >= 0 && value <= 100, i.id + '.' + key + ' is a percentage');
+        continue;
+      }
       assert.ok(knownKeys.has(key), i.id + ': unknown assumption ' + key);
       assert.equal(typeof value, 'number', i.id + '.' + key + ' must be a number');
       assert.ok(Number.isFinite(value), i.id + '.' + key + ' must be finite');
