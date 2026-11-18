@@ -51,3 +51,17 @@ test('no published page makes a fixed one-hour reply promise (issue 81)', async 
     assert.doesNotMatch(text(read(join('pages', f))), promise, `${f} makes a response promise`);
   }
 });
+
+test('quote follow-up cadence has two steps, stop rules and a pending legal review note (issue 84)', () => {
+  const t = text(read('pages/article-quote-follow-up.html'));
+  assert.match(t, /Two follow-ups, then stop/);
+  assert.match(t, /not now/);
+  assert.match(t, /Pending legal review/);
+  assert.match(t, /has not consented to receive marketing messages/);
+  assert.match(t, /honoured within five working days/);
+});
+
+test('invoice follow-up guide links to the quote follow-up guide (issue 84)', () => {
+  assert.match(read('pages/article-invoice-follow-up.html'), /href="\/resources\/quote-follow-up\/"/);
+  assert.match(read('sitemap.xml'), /resources\/quote-follow-up\//);
+});
