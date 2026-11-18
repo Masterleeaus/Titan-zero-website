@@ -108,3 +108,75 @@ test('recurring: the planner page names Front Desk Free and SortedAt.Work as opt
   assert.match(html, /Optional next steps, not required purchases/);
   assert.match(html, /Front Desk Free/);
 });
+
+// ---- #38 thirteen-week cash flow forecast ----------------------------------
+const summary = (result, label) => {
+  const item = result.summary.find((x) => x.label === label);
+  assert.ok(item, `summary item not found: ${label}`);
+  return item;
+};
+const blankWeeks38 = () => Array.from({ length: 13 }, () => ({ receipts: 0, overdue: 0, wages: 0, suppliers: 0, tax: 0, oneOff: 0 }));
+
+test('cash flow: each week opens at the previous week close', () => {
+  const rows = blankWeeks38();
+  rows[0].receipts = 300; rows[0].wages = 120;
+  rows[1].suppliers = 40; rows[2].overdue = 75; rows[2].tax = 25;
+  const r = P.cashFlow({ opening: 1000, sensitivityPct: 0, rows });
+  const t = r.tables[0].rows;
+  assert.equal(t[0][1].v, 1000);
+  assert.equal(t[0][4].v, 1180);
+  assert.equal(t[1][1].v, 1180);
+  assert.equal(t[1][4].v, 1140);
+  assert.equal(t[2][1].v, 1140);
+  assert.equal(t[2][4].v, 1190);
+});
+
+test('cash flow: a tie for the lowest close is reported at the first such week', () => {
+  const rows = blankWeeks38();
+  rows[0].wages = 50; rows[1].wages = 0; rows[2].wages = 0;
+  const r = P.cashFlow({ opening: 0, sensitivityPct: 0, rows });
+  assert.equal(r.headline.v, 50);
+  assert.equal(summary(r, 'Lowest week (base case)').v, 'Week 1');
+  assert.equal(summary(r, 'First week below zero (base case)').v, 'Week 1');
+});
+
+test('cash flow: no negative week reports no gap and no first week below zero', () => {
+  const rows = blankWeeks38();
+  rows[5].receipts = 500;
+  const r = P.cashFlow({ opening: 100, sensitivityPct: 0, rows });
+  assert.equal(r.headline.v, 0);
+  assert.equal(summary(r, 'First week below zero (base case)').v, 'None');
+});
+
+test('cash flow: maximum weekly amounts over 13 weeks stay finite and exact to the cent', () => {
+  const rows = blankWeeks38().map(() => ({ receipts: 1e9, overdue: 0, wages: 0.01, suppliers: 0, tax: 0, oneOff: 0 }));
+  const r = P.cashFlow({ opening: 1e9, sensitivityPct: 0, rows });
+  assert.equal(r.ok, true);
+  assert.ok(Number.isFinite(r.headline.v));
+  assert.equal(r.tables[0].rows[12][4].v, 1e9 * 13 + 1e9 - 0.13);
+});
+
+test('cash flow: the sensitivity case reports its own lowest point and gap', () => {
+  const rows = blankWeeks38();
+  rows[0].receipts = 100; rows[0].wages = 80;
+  const base = P.cashFlow({ opening: 0, sensitivityPct: 0, rows });
+  const sens = P.cashFlow({ opening: 0, sensitivityPct: 50, rows });
+  assert.equal(summary(base, 'Lowest closing cash (base case)').v, 20);
+  assert.equal(summary(sens, 'Lowest closing cash (sensitivity case)').v, -30);
+  assert.equal(summary(sens, 'Negative cash gap (sensitivity case)').v, 30);
+});
+
+test('cash flow: the planner page links invoice collection, break-even and SortedAt.Work, and says it is not advice', () => {
+  const html = page('tool-cash-flow-forecast.html');
+  assert.match(html, /href="\/tools\/invoice-collection\/"/);
+  assert.match(html, /href="\/tools\/break-even\/"/);
+  assert.match(html, /href="\/apps\/field\/"/);
+  assert.match(html, /not a financial forecast or advice|not financial advice/i);
+});
+
+test('cash flow: the shared planner UI offers a local text save and print, with no upload path', () => {
+  const ui = readFileSync(join(ROOT, 'assets', 'planner-ui.js'), 'utf8');
+  assert.match(ui, /Save result as a text file/);
+  assert.match(ui, /window\.print\(\)/);
+  assert.doesNotMatch(ui, /fetch\(|XMLHttpRequest|sendBeacon/);
+});
