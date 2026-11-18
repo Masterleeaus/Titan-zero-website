@@ -2,8 +2,12 @@
 // Loads assets/tool-calcs.js into a clean VM context: no DOM, no network.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
+
+// The service pricing tool (issue #34) is the reference for cents-based job cost.
+const P = createRequire(import.meta.url)('../assets/planner-calcs.js');
 
 const source = readFileSync(new URL('../assets/tool-calcs.js', import.meta.url), 'utf8');
 const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
@@ -440,7 +444,8 @@ test('job cost: zero cost gives a 100% margin and no divide-by-zero', () => {
 
 test('job cost: target price is cost divided by one minus target margin', () => {
   const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 50 }], targetMarginPct: 25 });
-  close(r.targetPrice, 100 / 0.75);
+  // 100 / 0.75 = 133.33..., rounded up to the cent as the service pricing tool does.
+  assert.equal(r.targetPrice, 133.34);
 });
 
 test('job cost: negative inputs and a 100% target margin are refused or treated as no target', () => {
@@ -455,6 +460,69 @@ test('job cost: converts to one quote line with the same ex-GST price', () => {
   assert.equal(line.quantity, 1);
   const total = C.quoteTotals({ lines: [line], taxMode: 'exclusive', taxRate: 10 });
   assert.equal(total.exTaxCents, 12346);
+});
+
+test('job cost: one labour line agrees to the cent with the service pricing tool', () => {
+  const job = C.jobCostSheet({
+    roles: [{ hours: 2, rate: 45 }], materials: 120, travel: 25, equipment: 10, overhead: 30,
+    contingencyPct: 10, targetMarginPct: 25, price: 0
+  });
+  const planner = P.servicePricing({
+    role: 'Technician', labourHours: 2, labourRate: 45, materials: 120, travel: 25, equipment: 10,
+    overhead: 30, contingencyPct: 10, targetMarginPct: 25, discountPct: 0, gst: 'no'
+  });
+  const trueCost = planner.summary.find(r => r.label === 'True unit cost, excluding GST').v;
+  const target = planner.summary.find(r => r.label === 'Recommended price at target margin').v;
+  assert.equal(job.totalCost, trueCost);
+  assert.equal(job.targetPrice, target);
+});
+
+test('job cost: markup on materials is shown as income and never added to cost', () => {
+  const plain = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 0 });
+  const marked = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 20 });
+  assert.equal(marked.totalCost, plain.totalCost);
+  assert.equal(marked.materialMarkupValue, 20);
+  assert.equal(marked.sellPriceMaterials, 120);
+});
+
+test('job cost: contingency applies to direct cost only, not to overhead', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 1, rate: 100 }], contingencyPct: 10, overhead: 50 });
+  assert.equal(r.directCost, 100);
+  assert.equal(r.contingency, 10);
+  assert.equal(r.totalCost, 160);
+});
+
+test('job cost: zero cost and no price give zero totals and no margin without error', () => {
+  const r = C.jobCostSheet({ roles: [], price: 0 });
+  assert.equal(r.totalCost, 0);
+  assert.equal(r.marginPct, null);
+  assert.equal(r.targetPrice, 0);
+});
+
+test('job cost: multi-line labour rounds each line to the cent and adds the lines', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 10.01 }, { hours: 0.3, rate: 10.01 }] });
+  assert.equal(r.labour, 23.02);
+  assert.equal(r.totalCost, 23.02);
+});
+
+test('quote transfer: sends the ex-GST price as one line and refuses a zero price', () => {
+  const cost = C.jobCostSheet({ roles: [{ hours: 1, rate: 10 }], price: 250 });
+  const record = C.quoteTransferRecord(cost, 'Gutter clean', '2026-11-18T00:00:00Z');
+  assert.equal(record.format, 'titan-zero-quote-line');
+  assert.equal(record.line.unitPrice, 250);
+  assert.equal(record.line.quantity, 1);
+  assert.throws(() => C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 0 }), 'x', 't'), /above zero/);
+});
+
+test('quote transfer: only a well-formed line is read back; text is kept as data', () => {
+  const good = JSON.stringify(C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 99.5 }), 'x'.repeat(200), 't'));
+  const read = C.readQuoteTransfer(good);
+  assert.equal(read.unitPrice, 99.5);
+  assert.equal(read.description.length, 160);
+  assert.equal(C.readQuoteTransfer('not json'), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'other', line: { description: 'a', unitPrice: 1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 'a', unitPrice: -1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 7, unitPrice: 1 } })), null);
 });
 
 // ---- #33 checklist state
