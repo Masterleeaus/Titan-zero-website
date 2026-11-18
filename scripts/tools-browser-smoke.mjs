@@ -80,6 +80,42 @@ try {
     }
   }
 
+  // Tool directory (#45): fits every width, keyword search narrows the list, and the full list works without JavaScript.
+  for (const [width, height] of WIDTHS) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+    await page.setViewport({ width, height, deviceScaleFactor: 1 });
+    await page.goto(BASE + '/tools/', { waitUntil: 'load' });
+    await page.addStyleTag({ content: '*{font-family:"DejaVu Sans",sans-serif !important}' });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    check('directory: no horizontal scroll @' + width, overflow <= 1, 'overflow ' + overflow + 'px');
+    if (width === 390) {
+      const total = await page.$$eval('article[data-tool]', (els) => els.length);
+      check('directory lists 27 tools', total === 27, String(total));
+      await page.type('#tool-search-input', 'quote');
+      await page.waitForFunction(() => /match/.test(document.querySelector('[data-tool-status]').textContent), { timeout: 3000 }).catch(() => {});
+      const shown = await page.$$eval('article[data-tool]', (els) => els.filter((el) => !el.hidden).length);
+      const status = await page.$eval('[data-tool-status]', (el) => el.textContent);
+      check('keyword search narrows the directory', shown >= 1 && shown < total, shown + ' shown, status: ' + status);
+      check('search status is announced politely', await page.$eval('[data-tool-status]', (el) => el.getAttribute('aria-live') === 'polite'));
+    }
+    check('no script errors on directory @' + width, errors.length === 0, errors.join('; ').slice(0, 300));
+    await page.close();
+  }
+  {
+    const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(BASE + '/tools/', { waitUntil: 'load' });
+    const listed = await page.$$eval('article[data-tool]', (els) => els.filter((el) => !el.hidden).length);
+    const links = await page.$$eval('article[data-tool] a[href^="/tools/"]', (els) => new Set(els.map((el) => el.getAttribute('href'))).size);
+    check('without JavaScript all 27 tools are listed', listed === 27, String(listed));
+    check('without JavaScript each Titan calculator has a link', links >= 19, String(links));
+    await page.close();
+  }
+
   // Print/PDF: header and footer are hidden, the result stays visible.
   {
     const page = await browser.newPage();
@@ -118,4 +154,4 @@ if (failures.length) {
   for (const f of failures) console.error('- ' + f);
   process.exit(1);
 }
-console.log('PASS: ' + passed + ' browser checks on ' + slugs.length + ' calculator pages at ' + WIDTHS.length + ' widths');
+console.log('PASS: ' + passed + ' browser checks on ' + slugs.length + ' calculator pages and the tool directory at ' + WIDTHS.length + ' widths');
