@@ -564,6 +564,57 @@
     return { total, done, complete: total > 0 && done === total };
   }
 
+  // A saved draft is untrusted input (it may be corrupt, edited by hand or from an older build).
+  // Anything that does not match the expected shape gives null, so the caller starts from the template.
+  // Task text is kept as plain text; nothing here renders HTML.
+  function parseChecklistDraft(raw, industryId, templates) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (_) { return null; }
+    const state = parsed && parsed.state;
+    if (!state || typeof state !== 'object' || !Array.isArray(state.tasks)) return null;
+    if (state.industry !== industryId || !Array.isArray(templates[industryId])) return null;
+    const tasks = [];
+    for (const task of state.tasks) {
+      if (!task || typeof task.id !== 'string' || typeof task.text !== 'string') continue;
+      const text = task.text.trim().slice(0, 240);
+      if (!text) continue;
+      tasks.push({
+        id: task.id.slice(0, 80),
+        key: typeof task.key === 'string' ? task.key.slice(0, 80) : task.id.slice(0, 80),
+        text,
+        done: task.done === true,
+        note: typeof task.note === 'string' ? task.note.slice(0, 300) : '',
+        custom: task.custom === true
+      });
+    }
+    return {
+      ...emptyChecklist(industryId),
+      job: typeof state.job === 'string' ? state.job.slice(0, 120) : '',
+      signOffNote: typeof state.signOffNote === 'string' ? state.signOffNote.slice(0, 500) : '',
+      tasks
+    };
+  }
+
+  // Plain-text working copy for a local download. No network; no business data leaves the browser.
+  function checklistText(state, industryName) {
+    const p = checklistProgress(state);
+    const lines = ['Service checklist: ' + (industryName || state.industry)];
+    if (state.job) lines.push('Job or site: ' + state.job);
+    lines.push('Progress: ' + p.done + ' of ' + p.total + ' tasks done' + (p.complete ? '. All tasks complete.' : '.'));
+    lines.push('');
+    state.tasks.forEach((task, index) => {
+      lines.push((index + 1) + '. [' + (task.done ? 'x' : ' ') + '] ' + task.text);
+      if (task.note) lines.push('   Evidence or note: ' + task.note);
+    });
+    if (state.signOffNote) {
+      lines.push('');
+      lines.push('Sign-off or site note: ' + state.signOffNote);
+    }
+    lines.push('');
+    lines.push('Review every step before use. This checklist does not replace safe-work procedures, licence requirements or your own sign-off.');
+    return lines.join('\n') + '\n';
+  }
+
   const api = {
     WEEKS_PER_MONTH,
     adminCost,
@@ -589,6 +640,8 @@
     setTaskDone,
     setTaskNote,
     checklistProgress,
+    parseChecklistDraft,
+    checklistText,
     QUOTE_STORE_KEY,
     QUOTE_LIMIT
   };
