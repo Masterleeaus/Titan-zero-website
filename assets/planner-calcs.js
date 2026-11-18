@@ -633,7 +633,8 @@
         'Contribution = completed × (value − variable cost) − messages × cost per message; staff time shown separately'
       ],
       notes: [
-        'Only send follow-up messages to people who have agreed to receive them. Honour opt-outs at once, and avoid sending outside agreed hours.',
+        'Only send follow-up messages to people who have agreed to receive them. Honour opt-outs at once, keep to quiet hours and agreed hours, and make sure every message has a working opt-out.',
+        'Commercial messages must follow the Spam Act 2003 (Cth): consent, sender identification and a functional unsubscribe. Check the current guidance before you send.',
         'Manual and configured workflows are compared using your own baseline rates. No AI benefit is assumed or guaranteed.',
         'Staff time is shown separately from contribution, so the two are not netted against each other.'
       ]
