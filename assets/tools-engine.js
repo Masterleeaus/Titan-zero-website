@@ -60,7 +60,7 @@
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
-      adminRate: rule.money('Loaded hourly cost'),
+      adminRate: rule.money('Hourly wage before on-costs'),
     },
     hire: {
       salary: rule.money('Annual salary'),
@@ -363,7 +363,7 @@
   const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
   const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
-    'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
+    'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',
     'daysPerWeek', 'leaveDays', 'nonbillPct', 'travelMin', 'cancelPct', 'reachPct', 'contribPct',
     'commsPerEnquiry', 'chase',
@@ -430,9 +430,103 @@
     return { profile, migratedFromV2: !source && Boolean(legacy) };
   }
 
+  // ---- Portable assumptions: redacted export and versioned import (#43, #44) ----------
+  // A portable file carries only numeric assumptions for one service type. It never carries
+  // business or service names, customer or staff details, quote text or the vertical list.
+  // Imports are all-or-nothing: any unknown field, sensitive field, wrong version or bad value
+  // rejects the whole file, so nothing is applied partially.
+  const PORTABLE_FORMAT = 'titan-zero-tool-assumptions';
+  const PORTABLE_VERSION = 1;
+  const PORTABLE_MAX_CHARS = 20000;
+  const PORTABLE_MAX_KEYS = 80;
+  const PORTABLE_TOP_KEYS = ['format', 'formatVersion', 'vertical', 'assumptions'];
+  const SENSITIVE_FIELD_HINTS = /name|customer|client|staff|employee|quote|email|phone|address|reference|note|terms|scope|exclusion|business|service|lines?$/i;
+  const PERCENT_KEYS = new Set([
+    'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'utilisationPct', 'taxRate',
+    'discountPct', 'targetMarginPct', 'nonbillPct', 'cancelPct', 'reachPct', 'contribPct',
+    'missed', 'convert', 'oncost', 'overdue', 'current', 'target',
+  ]);
+  const isPercentKey = (key) => PERCENT_KEYS.has(key) || /^(base|alt)_/.test(key) || /^(age|collect)_/.test(key);
+  const ASSUMPTION_KEY_LIST = Object.freeze([...ASSUMPTION_KEYS].sort());
+
+  // Redacted export of one vertical's numeric assumptions. Returns a plain object.
+  function exportAssumptions(profile, verticalId, industryIds) {
+    if (!industryIds.includes(verticalId)) throw new RangeError('Unknown service type');
+    const stored = (profile && profile.assumptions && profile.assumptions[verticalId]) || {};
+    const assumptions = {};
+    for (const key of Object.keys(stored).sort()) {
+      const n = Number(stored[key]);
+      if (ASSUMPTION_KEYS.has(key) && Number.isFinite(n) && Math.abs(n) <= MAX_AMOUNT) assumptions[key] = n;
+    }
+    return { format: PORTABLE_FORMAT, formatVersion: PORTABLE_VERSION, vertical: verticalId, assumptions };
+  }
+
+  // Validates a portable file (JSON text or an already-parsed object).
+  // Returns { ok:true, value:{ vertical, assumptions } } or { ok:false, errors:[{ key, message }] }.
+  function validateImport(input, industryIds) {
+    const errors = [];
+    const fail = (key, message) => { errors.push({ key, message }); };
+    let doc = input;
+    if (typeof input === 'string') {
+      if (input.length > PORTABLE_MAX_CHARS) return { ok: false, errors: [{ key: '', message: 'The file is too large to import.' }] };
+      try { doc = JSON.parse(input); } catch (_) { return { ok: false, errors: [{ key: '', message: 'The file is not valid JSON.' }] }; }
+    }
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return { ok: false, errors: [{ key: '', message: 'The file must contain one settings object.' }] };
+    if (doc.format !== PORTABLE_FORMAT) fail('format', 'This is not a Titan Zero tool assumptions file.');
+    if (doc.formatVersion !== PORTABLE_VERSION) {
+      fail('formatVersion', typeof doc.formatVersion === 'number' && doc.formatVersion > PORTABLE_VERSION
+        ? 'This file is from a newer version of the tools and cannot be read here.'
+        : 'This file is from an older version. Export it again from the current tools.');
+    }
+    for (const key of Object.keys(doc)) {
+      if (!PORTABLE_TOP_KEYS.includes(key)) {
+        fail(key, SENSITIVE_FIELD_HINTS.test(key)
+          ? 'The file contains business or customer details, which are never imported.'
+          : 'Unknown field: ' + boundedText(key) + '.');
+      }
+    }
+    if (!industryIds.includes(doc.vertical)) fail('vertical', 'The service type in this file is not one of the Titan Zero service types.');
+    const assumptions = doc.assumptions;
+    const keys = assumptions && typeof assumptions === 'object' && !Array.isArray(assumptions) ? Object.keys(assumptions) : null;
+    if (!keys) {
+      fail('assumptions', 'The assumptions must be an object of numbers.');
+    } else if (keys.length > PORTABLE_MAX_KEYS) {
+      fail('assumptions', 'The file has too many assumptions.');
+    } else {
+      for (const key of keys) {
+        const value = assumptions[key];
+        if (!ASSUMPTION_KEYS.has(key)) {
+          fail('assumptions.' + key, SENSITIVE_FIELD_HINTS.test(key)
+            ? 'The file contains business or customer details, which are never imported.'
+            : 'Unknown assumption: ' + boundedText(key) + '.');
+          continue;
+        }
+        if (typeof value !== 'number' || !Number.isFinite(value)) { fail('assumptions.' + key, 'Assumption ' + key + ' must be a number.'); continue; }
+        if (value < 0 || value > MAX_AMOUNT) { fail('assumptions.' + key, 'Assumption ' + key + ' must be between 0 and ' + MAX_AMOUNT + '.'); continue; }
+        if (isPercentKey(key) && value > 100) fail('assumptions.' + key, 'Assumption ' + key + ' is a percentage and cannot exceed 100.');
+      }
+    }
+    if (errors.length) return { ok: false, errors };
+    const clean = {};
+    for (const key of keys) clean[key] = assumptions[key];
+    return { ok: true, value: { vertical: doc.vertical, assumptions: clean } };
+  }
+
+  // Applies a validated import to a profile copy for the named vertical only. Returns the new
+  // profile and the list of values that were applied, so the page can show them.
+  function applyImport(profile, validated) {
+    if (!validated || !validated.ok) throw new TypeError('Only a validated import can be applied');
+    const { vertical, assumptions } = validated.value;
+    const next = { ...profile, assumptions: { ...(profile.assumptions || {}), [vertical]: { ...assumptions } } };
+    const applied = Object.entries(assumptions).map(([key, value]) => ({ key, value }));
+    return { profile: next, applied };
+  }
+
   return {
     PROFILE_KEY, LEGACY_PROFILE_KEY, PROFILE_VERSION, MAX_AMOUNT,
+    PORTABLE_FORMAT, PORTABLE_VERSION, PORTABLE_MAX_CHARS, PORTABLE_MAX_KEYS, ASSUMPTION_KEY_LIST,
     RULES, validate, toCents, fromCents, formatMoney, formatNumber,
     calculators, quote, validateLines, jobCost, splitGstInclusive, migrateProfile,
+    exportAssumptions, validateImport, applyImport,
   };
 });
