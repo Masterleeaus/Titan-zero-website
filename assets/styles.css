@@ -19,3 +19,5 @@
 @media (max-width:480px){.container.tools-shell{width:calc(100% - 40px)}.tool-category-nav a{min-height:48px}}
 
 .concept-figure{margin:0;border:1px solid #32445f;border-radius:15px;overflow:hidden;background:#111b2b}.concept-figure img{width:100%;height:auto;aspect-ratio:1280/800}.concept-figure figcaption{padding:14px 18px;font-size:18px;line-height:1.6;color:#c0cee1;background:#0d1626}.concept-figure figcaption strong{color:#e4eefb}
+/* #110: on phone widths, long words such as brand names may break so that text cannot push the page wider than the screen. */
+@media (max-width:600px){h1,h2,h3,h4,h5,p,li,a,span,strong,small,em,b,label,legend,dt,dd,td,th,figcaption,summary,button{overflow-wrap:anywhere}}
