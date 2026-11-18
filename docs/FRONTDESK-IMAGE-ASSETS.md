@@ -25,9 +25,37 @@ Status as of 2026-11-18. Source of truth for what images the Front Desk pages us
 
 No product screenshot, UI capture or diagram is published on any Front Desk page.
 
-## Unused files in `assets/`
+## Removed in issue #89
 
-These three WebP files exist but no page references them (checked with a repository-wide search).
+The three unused files below were deleted on 2026-11-18. No page referenced them. Their colours did not match the approved palette, Pro is retired, and no provenance record existed.
+
+- `assets/frontdesk-ai-hero.webp`
+- `assets/frontdesk-agent-hero.webp`
+- `assets/frontdesk-pro-hero.webp`
+
+`tests/frontdesk-concept-images.test.mjs` now fails if any `assets/frontdesk-*.webp` file is not referenced by a page.
+
+## Measurements (issue #89, 2026-11-18)
+
+Measured in headless Chrome against a local server. The layout-shift value is the cumulative score from the `layout-shift` observer, read 4 seconds after load.
+
+| Page | Cumulative layout shift | Concept image sizes (bytes) | Caption contrast |
+|---|---|---|---|
+| `/frontdeskai/` | 0.0000, 0 shift entries | 640 px 16,000; 960 px 28,478; 1280 px 39,964 | 11.34:1 |
+| `/frontdeskagent/` | 0.0000, 0 shift entries | 640 px 14,342; 960 px 25,000; 1280 px 36,058 | 11.34:1 |
+
+- Image payload: the concept image adds about 16 KB on a 390 px phone and about 28 KB at 960 px. The above-the-fold brand emblem is 23,520 bytes.
+- No text is placed over an image. Captions sit below each image on a solid background, so no text-over-image contrast check applies.
+- Snapshots at 1280 px and 390 px: `docs/qa/snapshots/frontdeskai-*.png` and `docs/qa/snapshots/frontdeskagent-*.png`.
+
+## Still missing (issue #89)
+
+- Verified UI captures of Front Desk Free from a released plugin build, with the build version recorded. No WordPress install or released build was available to this agent.
+- Snapshots of Front Desk Free, because there is no captured Free screen yet.
+
+## Former unused files (historical, removed in #89)
+
+These three WebP files were unused before issue #89 removed them.
 
 | File | What it shows (by inspection) | Fit with the approved palette |
 |---|---|---|
