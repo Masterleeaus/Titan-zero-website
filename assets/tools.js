@@ -44,11 +44,13 @@ return{verticals:allowed,activeVertical:active,businessName:saved.businessName,s
 }
 const profile=readProfile();
 // Writes the V3 profile and only then removes the V2 copy, so a failed write never loses data.
+// Returns false when the browser refuses the write (disabled or full storage), so the caller can say so (#107).
 function saveProfile(){
 try{
 localStorage.setItem(storageKey,JSON.stringify({schema:engine.PROFILE_VERSION,...profile}));
 localStorage.removeItem(engine.LEGACY_PROFILE_KEY);
-}catch(_){}
+return true;
+}catch(_){return false;}
 }
 function currentIndustry(){return industryById[profile.activeVertical]||industryById.cleaning;}
 function getAssumptions(){return profile.assumptions[profile.activeVertical]||(profile.assumptions[profile.activeVertical]={});}
@@ -130,7 +132,7 @@ if(service)service.addEventListener('change',()=>{profile.serviceName=escContext
 const addButton=root.querySelector('[data-add-vertical]');
 if(addButton&&addSelect)addButton.addEventListener('click',()=>{const id=addSelect.value;if(!industryById[id]||profile.verticals.includes(id))return;profile.verticals.push(id);profile.activeVertical=id;saveProfile();drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
 const clear=root.querySelector('[data-clear-profile]');
-if(clear)clear.addEventListener('click',()=>{try{localStorage.removeItem(storageKey);localStorage.removeItem('titanBusinessToolProfileV2');}catch(_){}profile.verticals=['cleaning'];profile.activeVertical=industryById[query.get('industry')]?query.get('industry'):'cleaning';if(profile.activeVertical!=='cleaning')profile.verticals.push(profile.activeVertical);profile.businessName='';profile.serviceName='';profile.assumptions={};saveProfile();drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
+if(clear)clear.addEventListener('click',()=>{try{localStorage.removeItem(storageKey);localStorage.removeItem('titanBusinessToolProfileV2');localStorage.removeItem(engine.formulas.QUOTE_STORE_KEY);}catch(_){}profile.verticals=['cleaning'];profile.activeVertical=industryById[query.get('industry')]?query.get('industry'):'cleaning';if(profile.activeVertical!=='cleaning')profile.verticals.push(profile.activeVertical);profile.businessName='';profile.serviceName='';profile.assumptions={};drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
 drawSummary();
 }
 function showCalculatorError(resultElement,definition,message){
@@ -196,8 +198,10 @@ let outcome;
 try{outcome=definition.calc(values);}
 catch(error){showCalculatorError(result,definition,error.message);return;}
 for(const[key,value]of Object.entries(values))if(typeof value==='number')getAssumptions()[key]=value;
-saveProfile();
+const saved=saveProfile();
 showCalculatorResult(result,definition,outcome,values);
+// A storage failure is shown in the result, not hidden (#107).
+if(!saved)result.append(textNode('p','This browser would not save your assumptions, so they will not be here on your next visit.','form-error'));
 });
 tabs.forEach(tab=>tab.addEventListener('click',()=>{if(!defaults[tab.dataset.toolTab])return;active=tab.dataset.toolTab;draw();}));
 root.addEventListener('toolverticalchange',draw);

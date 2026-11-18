@@ -251,6 +251,29 @@ function runChecklist(rawDraft = null) {
   check('checklist: download is announced as made in this browser', /not uploaded/.test(r.doc.querySelector('[data-checklist-progress]').textContent));
 }
 
+// 11. Storage failure (#107): a refused write is reported in the result, not hidden.
+{
+  const r = openPage('pages/tool-admin-cost.html', 'https://titanzero.io/tools/admin-cost/');
+  r.Storage.prototype.setItem = () => { throw new Error('QuotaExceededError'); };
+  r.document.querySelector('[data-tool-form]').dispatchEvent(new r.Event('submit', { bubbles: true, cancelable: true }));
+  const shown = r.document.querySelector('[data-tool-result]').textContent;
+  check('admin cost shows a result when storage is refused', /A\$/.test(shown), shown.slice(0, 80));
+  check('storage refusal is reported in the result', /would not save your assumptions/.test(shown), shown.slice(-160));
+}
+
+// 12. Clear control (#107): the profile and the quote store are removed, and nothing is written back.
+{
+  const r = openPage('pages/tool-admin-cost.html', 'https://titanzero.io/tools/admin-cost/', {
+    titanBusinessToolProfileV3: JSON.stringify({ schema: 3, verticals: ['cleaning'], activeVertical: 'cleaning', businessName: 'PRIVATE-BUSINESS', serviceName: '', assumptions: { cleaning: { adminHours: 12 } } }),
+    titanBusinessToolProfileV2: JSON.stringify({ verticals: ['cleaning'], businessName: 'PRIVATE-BUSINESS' }),
+    titanQuotesV1: JSON.stringify({ quotes: [{ reference: 'Q-1', customer: 'PRIVATE-CUSTOMER' }] }),
+  });
+  r.document.querySelector('[data-clear-profile]').dispatchEvent(new r.Event('click', { bubbles: true }));
+  check('clear removes the V3 profile', r.localStorage.getItem('titanBusinessToolProfileV3') === null);
+  check('clear removes the V2 profile', r.localStorage.getItem('titanBusinessToolProfileV2') === null);
+  check('clear removes the quote store', r.localStorage.getItem('titanQuotesV1') === null);
+}
+
 // 8. Service pricing to Quote Builder and Job Cost Sheet (#34). Figures are saved only after a click,
 // stay in this browser, are offered only when valid, and are applied only after a second click.
 function loadPage(page, rawStorage = {}, scripts = ['assets/site-data.js', 'assets/site.js', 'assets/planner-calcs.js', 'assets/planner-ui.js', 'assets/tools-engine.js', 'assets/tools.js']) {
