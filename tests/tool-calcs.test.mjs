@@ -1,12 +1,15 @@
 // Deterministic tests for the calculation helpers behind issues #24-#33.
-// Loads assets/tool-calcs.js into a clean VM context: no DOM, no network.
+// The formulas live in assets/tools-engine.js (engine.formulas, #104). No DOM, no network.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 
-const source = readFileSync(new URL('../assets/tool-calcs.js', import.meta.url), 'utf8');
-const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
+const require = createRequire(import.meta.url);
+const C = require('../assets/tools-engine.js').formulas;
+// The service pricing tool (issue #34) is the reference for cents-based job cost.
+const P = require('../assets/planner-calcs.js');
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, message || `${actual} != ${expected}`);
 
 // ---- #24 admin cost
@@ -480,6 +483,77 @@ test('quote: stored text is kept as data, not interpreted', () => {
   assert.equal(JSON.stringify(r.saved).includes('<img'), true, 'data stays inert until the UI sets textContent');
 });
 
+const quoteInput = (overrides = {}) => ({
+  reference: 'Q-100', business: 'Acme Clean', customer: 'Pat Example', service: 'Gutter clean',
+  scope: 'Clear gutters', exclusions: 'Roof repairs', terms: '14 days',
+  validDays: 14, taxMode: 'exclusive', taxRate: 10, discountPct: 5,
+  lines: [{ description: 'Labour', quantity: 1.5, unitPrice: 33.33 }, { description: 'Bag', quantity: 2, unitPrice: 9.99 }],
+  ...overrides
+});
+
+test('quote: restoring the saved version gives back the same totals', () => {
+  const saved = C.saveQuoteRecord({ quotes: [] }, quoteInput({ consentToStoreCustomer: true }), '2026-11-18T00:00:00Z');
+  const restored = C.restoreQuote(saved.saved);
+  const before = C.quoteTotals(quoteInput());
+  const after = C.quoteTotals({ ...restored, lines: restored.lines });
+  assert.equal(after.totalCents, before.totalCents);
+  assert.equal(after.gstCents, before.gstCents);
+  assert.equal(restored.scope, 'Clear gutters');
+  assert.equal(restored.customer, 'Pat Example');
+  assert.equal(restored.version, 1);
+});
+
+test('quote: each save keeps earlier versions, capped at the history limit', () => {
+  let store = { quotes: [] };
+  for (let i = 1; i <= 8; i++) {
+    store = { quotes: C.saveQuoteRecord(store, quoteInput({ service: 'Visit ' + i }), 't' + i).quotes };
+  }
+  const rec = store.quotes[0];
+  assert.equal(rec.version, 8);
+  assert.equal(rec.history.length, 5, 'only the five most recent earlier versions are kept');
+  assert.equal(rec.history[0].version, 7);
+  assert.equal(rec.history[0].service, 'Visit 7');
+  assert.equal(C.restoreQuote(rec, 6).service, 'Visit 6');
+});
+
+test('quote: an earlier version can be restored; an unknown version is refused', () => {
+  let store = { quotes: C.saveQuoteRecord({ quotes: [] }, quoteInput({ service: 'First' }), 't1').quotes };
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ service: 'Second' }), 't2').quotes };
+  assert.equal(C.restoreQuote(store.quotes[0], 1).service, 'First');
+  assert.throws(() => C.restoreQuote(store.quotes[0], 9), /not stored on this device/);
+});
+
+test('quote: withdrawing consent clears the customer name from every stored version', () => {
+  let store = { quotes: C.saveQuoteRecord({ quotes: [] }, quoteInput({ consentToStoreCustomer: true }), 't1').quotes };
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ consentToStoreCustomer: true }), 't2').quotes };
+  assert.equal(store.quotes[0].history[0].customer, 'Pat Example');
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ consentToStoreCustomer: false }), 't3').quotes };
+  assert.equal(store.quotes[0].customer, '');
+  assert.equal(store.quotes[0].history[0].customer, '');
+  assert.equal(store.quotes[0].history[1].customer, '');
+});
+
+test('quote: saving refuses values that cannot be totalled again', () => {
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ taxMode: 'vat' }), 't'), /Tax mode/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ discountPct: 101 }), 't'), /must be 0 to 100/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ taxRate: -5 }), 't'), /GST rate/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ lines: [{ description: 'x', quantity: -1, unitPrice: 1 }] }), 't'), /at least 0/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ validDays: 366 }), 't'), /must be 0 to 365/);
+});
+
+test('quote: validity runs from the saved date in whole days (UTC)', () => {
+  assert.equal(C.quoteValidUntil('2026-11-18T09:30:00Z', 14), '2026-12-02');
+  assert.equal(C.quoteValidUntil('2026-11-18T00:00:00Z', 0), null, 'no validity period');
+  assert.equal(C.quoteValidUntil('2026-12-25T00:00:00Z', 7), '2027-01-01', 'crosses a year end');
+  assert.throws(() => C.quoteValidUntil('not a date', 14), /not valid/);
+  assert.throws(() => C.quoteValidUntil('2026-11-18T00:00:00Z', -1), /must be 0 to 365/);
+});
+
+test('quote: restored text stays data, not markup', () => {
+  const saved = C.saveQuoteRecord({ quotes: [] }, quoteInput({ scope: '<b>x</b>' }), 't');
+  assert.equal(C.restoreQuote(saved.saved).scope, '<b>x</b>');
+});
+
 // ---- #32 job cost sheet
 test('job cost: several labour lines add up and costs stay separate from price', () => {
   const r = C.jobCostSheet({
@@ -506,7 +580,8 @@ test('job cost: zero cost gives a 100% margin and no divide-by-zero', () => {
 
 test('job cost: target price is cost divided by one minus target margin', () => {
   const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 50 }], targetMarginPct: 25 });
-  close(r.targetPrice, 100 / 0.75);
+  // 100 / 0.75 = 133.33..., rounded up to the cent as the service pricing tool does.
+  assert.equal(r.targetPrice, 133.34);
 });
 
 test('job cost: negative inputs and a 100% target margin are refused or treated as no target', () => {
@@ -600,10 +675,204 @@ test('checklist: progress reports complete only when every task is ticked', () =
   const progress = C.checklistProgress(state); assert.equal(progress.total, 3); assert.equal(progress.done, 3); assert.equal(progress.complete, true);
 });
 
-test('checklist: all ten shipped industries have a template in site-data', () => {
+const siteData = () => {
   const site = readFileSync(new URL('../assets/site-data.js', import.meta.url), 'utf8');
-  const data = runInNewContext(site.replace('window.TITAN_SITE_CONTENT=', 'globalThis.DATA=') + '\n;globalThis.DATA', {});
+  return runInNewContext(site.replace('window.TITAN_SITE_CONTENT=', 'globalThis.DATA=') + '\n;globalThis.DATA', {});
+};
+
+test('checklist: all eleven shipped service types have a template in site-data', () => {
+  const data = siteData();
   const ids = data.industries.map(item => item.id);
-  assert.equal(ids.length, 10);
+  assert.equal(ids.length, 11);
   for (const id of ids) assert.ok(Array.isArray(data.checklists[id]) && data.checklists[id].length > 0, id + ' template');
+  assert.ok(ids.includes('painting-decorating'), 'the eleventh service type is painting and decorating');
+});
+
+test('checklist defaults: every service type has starter values for every calculator input', () => {
+  const data = siteData();
+  const required = ['adminHours', 'adminRate', 'salary', 'oncost', 'margin', 'fixed', 'price', 'variable', 'jobRevenue', 'labour',
+    'materials', 'travel', 'workers', 'hours', 'duration', 'currentJobs', 'calls', 'missed', 'convert', 'jobValue', 'leads',
+    'current', 'target', 'value', 'invoices', 'avg', 'overdue', 'chase'];
+  for (const item of data.industries) {
+    for (const key of required) assert.ok(Number.isFinite(item.defaults[key]), item.id + ' default ' + key);
+    assert.equal(item.route, '/industries/' + item.slug + '/', item.id + ' route matches slug');
+  }
+});
+
+test('checklist: the painting template is ticked, edited and reset without touching other service types', () => {
+  const data = siteData();
+  let state = { ...C.emptyChecklist('painting-decorating'), tasks: C.templateTasks('painting-decorating', data.checklists, 1) };
+  assert.equal(state.tasks.length, data.checklists['painting-decorating'].length);
+  state = C.setTaskDone(state, state.tasks[0].id, true);
+  assert.equal(C.checklistProgress(state).done, 1);
+});
+
+test('draft (#33): a saved draft restores ticks, notes, custom tasks and the sign-off note', () => {
+  let state = { ...C.emptyChecklist('cleaning'), job: 'Unit 4', tasks: C.templateTasks('cleaning', templates, 1), signOffNote: 'Client present' };
+  state = C.setTaskDone(state, state.tasks[1].id, true);
+  state = C.setTaskNote(state, state.tasks[1].id, 'Checked twice');
+  state = C.addCustomTask(state, 'Check the balcony', 'x1');
+  const raw = JSON.stringify({ savedAt: '2026-11-18T00:00:00.000Z', state });
+  const restored = C.parseChecklistDraft(raw, 'cleaning', templates);
+  const reconciled = C.reconcileChecklist(restored, 'cleaning', templates, 1);
+  assert.equal(reconciled.job, 'Unit 4');
+  assert.equal(reconciled.signOffNote, 'Client present');
+  assert.equal(reconciled.tasks[1].done, true);
+  assert.equal(reconciled.tasks[1].note, 'Checked twice');
+  assert.equal(reconciled.tasks.at(-1).text, 'Check the balcony');
+  assert.equal(reconciled.tasks.at(-1).custom, true);
+});
+
+test('draft (#33): corrupt, foreign or unknown drafts give null, so the page starts from the template', () => {
+  assert.equal(C.parseChecklistDraft(null, 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft('{not json', 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft('"a string"', 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'plumbing', tasks: [] } }), 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'cleaning', tasks: 'no' } }), 'cleaning', templates), null);
+  assert.equal(C.parseChecklistDraft(JSON.stringify({ state: { industry: 'roofing', tasks: [] } }), 'roofing', templates), null, 'no template');
+});
+
+test('draft (#33): malformed task entries are dropped and long values are capped', () => {
+  const raw = JSON.stringify({ state: { industry: 'cleaning', job: 'x'.repeat(500), tasks: [
+    null, { id: 5, text: 'bad id' }, { id: 'a', text: '   ' }, { id: 'b', text: 'ok', done: 'yes' }, { id: 'c', text: 'y'.repeat(400), note: 'n'.repeat(900), custom: true }
+  ] } });
+  const state = C.parseChecklistDraft(raw, 'cleaning', templates);
+  assert.equal(JSON.stringify(state.tasks.map(task => task.id)), '["b","c"]');
+  assert.equal(state.tasks[0].done, false, 'a non-boolean done flag is not a tick');
+  assert.equal(state.tasks[1].text.length, 240);
+  assert.equal(state.tasks[1].note.length, 300);
+  assert.equal(state.job.length, 120);
+});
+
+test('XSS (#33): task text that looks like markup is kept as plain text in the state and in the export', () => {
+  const hostile = '<img src=x onerror=alert(1)>';
+  const raw = JSON.stringify({ state: { industry: 'cleaning', tasks: [{ id: 'h', text: hostile, done: false, note: '<b>n</b>' }] } });
+  const state = C.parseChecklistDraft(raw, 'cleaning', templates);
+  assert.equal(state.tasks[0].text, hostile);
+  const text = C.checklistText(state, 'Cleaning');
+  assert.ok(text.includes(hostile), 'the download is plain text');
+  assert.equal(text.includes('<script'), false);
+});
+
+test('export (#33): checklist text lists progress, ticks, notes and the sign-off without network or HTML', () => {
+  let state = { ...C.emptyChecklist('cleaning'), job: 'Flat 2', tasks: C.templateTasks('cleaning', templates, 1), signOffNote: 'Keys returned' };
+  state = C.setTaskDone(state, state.tasks[0].id, true);
+  state = C.setTaskNote(state, state.tasks[0].id, 'Gate code checked');
+  const text = C.checklistText(state, 'Cleaning');
+  assert.match(text, /^Service checklist: Cleaning\nJob or site: Flat 2\nProgress: 1 of 3 tasks done\./);
+  assert.match(text, /1\. \[x\] Confirm access\n {3}Evidence or note: Gate code checked/);
+  assert.match(text, /2\. \[ \] Clean rooms/);
+  assert.match(text, /Sign-off or site note: Keys returned/);
+  assert.match(text, /does not replace safe-work procedures/);
+  assert.equal(C.checklistText(C.emptyChecklist('cleaning'), 'Cleaning').includes('undefined'), false);
+});
+
+test('export (#33): the completion line says so only when every task is ticked', () => {
+  let state = { ...C.emptyChecklist('cleaning'), tasks: C.templateTasks('cleaning', templates, 1) };
+  for (const task of state.tasks) state = C.setTaskDone(state, task.id, true);
+  assert.match(C.checklistText(state, 'Cleaning'), /Progress: 3 of 3 tasks done\. All tasks complete\./);
+});
+
+test('job cost: one labour line agrees to the cent with the service pricing tool', () => {
+  const job = C.jobCostSheet({
+    roles: [{ hours: 2, rate: 45 }], materials: 120, travel: 25, equipment: 10, overhead: 30,
+    contingencyPct: 10, targetMarginPct: 25, price: 0
+  });
+  const planner = P.servicePricing({
+    role: 'Technician', labourHours: 2, labourRate: 45, materials: 120, travel: 25, equipment: 10,
+    overhead: 30, contingencyPct: 10, targetMarginPct: 25, discountPct: 0, gst: 'no'
+  });
+  const trueCost = planner.summary.find(r => r.label === 'True unit cost, excluding GST').v;
+  const target = planner.summary.find(r => r.label === 'Recommended price at target margin').v;
+  assert.equal(job.totalCost, trueCost);
+  assert.equal(job.targetPrice, target);
+});
+
+test('job cost: markup on materials is shown as income and never added to cost', () => {
+  const plain = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 0 });
+  const marked = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 20 });
+  assert.equal(marked.totalCost, plain.totalCost);
+  assert.equal(marked.materialMarkupValue, 20);
+  assert.equal(marked.sellPriceMaterials, 120);
+});
+
+test('job cost: contingency applies to direct cost only, not to overhead', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 1, rate: 100 }], contingencyPct: 10, overhead: 50 });
+  assert.equal(r.directCost, 100);
+  assert.equal(r.contingency, 10);
+  assert.equal(r.totalCost, 160);
+});
+
+test('job cost: zero cost and no price give zero totals and no margin without error', () => {
+  const r = C.jobCostSheet({ roles: [], price: 0 });
+  assert.equal(r.totalCost, 0);
+  assert.equal(r.marginPct, null);
+  assert.equal(r.targetPrice, 0);
+});
+
+test('job cost: multi-line labour rounds each line to the cent and adds the lines', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 10.01 }, { hours: 0.3, rate: 10.01 }] });
+  assert.equal(r.labour, 23.02);
+  assert.equal(r.totalCost, 23.02);
+});
+
+test('quote transfer: sends the ex-GST price as one line and refuses a zero price', () => {
+  const cost = C.jobCostSheet({ roles: [{ hours: 1, rate: 10 }], price: 250 });
+  const record = C.quoteTransferRecord(cost, 'Gutter clean', '2026-11-18T00:00:00Z');
+  assert.equal(record.format, 'titan-zero-quote-line');
+  assert.equal(record.line.unitPrice, 250);
+  assert.equal(record.line.quantity, 1);
+  assert.throws(() => C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 0 }), 'x', 't'), /above zero/);
+});
+
+test('quote transfer: only a well-formed line is read back; text is kept as data', () => {
+  const good = JSON.stringify(C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 99.5 }), 'x'.repeat(200), 't'));
+  const read = C.readQuoteTransfer(good);
+  assert.equal(read.unitPrice, 99.5);
+  assert.equal(read.description.length, 160);
+  assert.equal(C.readQuoteTransfer('not json'), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'other', line: { description: 'a', unitPrice: 1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 'a', unitPrice: -1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 7, unitPrice: 1 } })), null);
+});
+
+// ---- #34 pricing handoff: figures saved by Service pricing and read back by the Quote Builder and Job Cost Sheet
+const savedPricing = {
+  savedAt: '2026-11-18T00:00:00.000Z', role: 'Technician', labourHours: 2, labourRate: 45, materials: 20.5, travel: 10,
+  equipment: 5, overhead: 12.25, contingencyPct: 10, targetMarginPct: 30, targetPrice: 186.35
+};
+
+test('pricing handoff (#34): a valid saved figure set is read back with cents and a trimmed role', () => {
+  const figures = C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: '  Technician  ' }));
+  assert.equal(figures.role, 'Technician');
+  assert.equal(figures.labourHours, 2);
+  assert.equal(figures.targetPrice, 186.35);
+  assert.equal(figures.overhead, 12.25);
+});
+
+test('pricing handoff (#34): missing, corrupt or non-object saves give null', () => {
+  assert.equal(C.parsePricingHandoff(null), null);
+  assert.equal(C.parsePricingHandoff('{bad'), null);
+  assert.equal(C.parsePricingHandoff('42'), null);
+  assert.equal(C.parsePricingHandoff('null'), null);
+});
+
+test('pricing handoff (#34): any figure out of range or of the wrong type makes the whole save unusable', () => {
+  const cases = [
+    { targetPrice: -1 }, { targetPrice: 1000001 }, { labourRate: 'forty' }, { materials: Number.NaN },
+    { contingencyPct: 100 }, { targetMarginPct: 100 }, { labourHours: 10001 }, { travel: null }
+  ];
+  for (const change of cases) {
+    const raw = JSON.stringify({ ...savedPricing, ...change });
+    assert.equal(C.parsePricingHandoff(raw), null, JSON.stringify(change));
+  }
+});
+
+test('pricing handoff (#34): a role over 80 characters is capped and a non-text role becomes empty', () => {
+  assert.equal(C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: 'r'.repeat(200) })).role.length, 80);
+  assert.equal(C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: 7 })).role, '');
+});
+
+test('pricing handoff (#34): the storage key is versioned', () => {
+  assert.equal(C.PRICING_HANDOFF_KEY, 'titanPricingHandoffV1');
 });

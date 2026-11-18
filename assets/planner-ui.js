@@ -201,6 +201,56 @@
     target.append(row, status);
   }
 
+  // Service pricing only. The approved figures are saved in this browser for the Quote Builder and
+  // Job Cost Sheet to offer. Nothing is sent anywhere, and the other tools only apply them after a click.
+  const PRICING_HANDOFF_KEY = 'titanPricingHandoffV1';
+  function handoffRow(target, values, outcome) {
+    const targetPrice = outcome.summary[2] && outcome.summary[2].v;
+    const row = document.createElement('div');
+    row.className = 'button-row result-actions';
+    const status = text('p', 'Saved figures stay in this browser and are not uploaded. Check them in each tool before you issue a quote.', 'fine-print');
+    status.setAttribute('role', 'status');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-secondary';
+    button.textContent = 'Save these figures for Quote Builder and Job Cost Sheet';
+    if (typeof targetPrice !== 'number') {
+      button.disabled = true;
+      status.textContent = 'There is no target price to save while the target margin is 100%. Lower the target margin first.';
+    }
+    button.addEventListener('click', () => {
+      const payload = {
+        savedAt: new Date().toISOString(),
+        role: String(values.role || ''),
+        labourHours: values.labourHours,
+        labourRate: values.labourRate,
+        materials: values.materials,
+        travel: values.travel,
+        equipment: values.equipment,
+        overhead: values.overhead,
+        contingencyPct: values.contingencyPct,
+        targetMarginPct: values.targetMarginPct,
+        targetPrice
+      };
+      try {
+        localStorage.setItem(PRICING_HANDOFF_KEY, JSON.stringify(payload));
+        status.textContent = 'Saved. The figures are excluding GST. Open Quote Builder or Job Cost Sheet to use them.';
+      } catch (_) {
+        status.textContent = 'These figures could not be saved on this device. Copy the result instead.';
+      }
+    });
+    const quote = document.createElement('a');
+    quote.className = 'button button-secondary';
+    quote.href = '/tools/quote-builder/';
+    quote.textContent = 'Open Quote Builder';
+    const job = document.createElement('a');
+    job.className = 'button button-secondary';
+    job.href = '/tools/job-cost-sheet/';
+    job.textContent = 'Open Job Cost Sheet';
+    row.append(button, quote, job);
+    target.append(row, status);
+  }
+
   function initPlanner(root) {
     const slug = root.dataset.planner;
     const def = P.definitions[slug];
@@ -397,6 +447,7 @@
       const outcome = def.calc(values);
       renderResult(result, def.title, outcome);
       if (outcome.ok) actionRow(result, slug, def.title, plainLine(outcome));
+      if (outcome.ok && slug === 'service-pricing') handoffRow(result, values, outcome);
     }
 
     form.addEventListener('submit', calculate);
