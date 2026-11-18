@@ -1,6 +1,7 @@
 // Regression tests for the planners in issues #34-#41 (assets/planner-calcs.js).
 // Pure functions only: no DOM, no network, no storage.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 
@@ -377,8 +378,60 @@ test('customer response: pairing reports differences for bookings and staff hour
   assert.equal(pairs[1].v, -10);
 });
 
+test('customer response: opt-out, quiet-hours and Spam Act narrative is shown with every result', () => {
+  const r = P.customerResponse({ ...cust, enquiries: 10 });
+  const notes = r.notes.join(' ');
+  assert.match(notes, /opt-out/);
+  assert.match(notes, /quiet hours/);
+  assert.match(notes, /Spam Act 2003/);
+  assert.match(notes, /No AI benefit is assumed or guaranteed/);
+});
+
+test('customer response: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000000 }).ok, true);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000001 }).ok, false);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 10, followUps: 6 }).ok, false);
+});
+
+test('customer response: money is rounded to the cent once, with no float drift', () => {
+  // 3 completed bookings at A$19.99 less A$0.10 variable cost each = A$59.67; no consent, so no messages
+  const r = P.customerResponse({ ...cust, enquiries: 3, reachPhone: 100, consentPct: 0, qualifiedPct: 100, bookPct: 100, avgJobValue: 19.99, jobVariableCost: 0.1, costPerMessage: 0.1 });
+  assert.equal(r.summary[0].v, 59.67);
+});
+
 // ---- #41 upgrade configurator -----------------------------------------------
 const none = { assistant: false, agent: false, supercharged: false, scheduled: false, sorted: false, skilled: false, assistantBand: 'standard', agentBand: 'standard', hoursSavedPerWeek: 0, valuePerHour: 0 };
+
+const catalogue = JSON.parse(readFileSync(new URL('../assets/upgrade-catalogue.json', import.meta.url), 'utf8'));
+
+test('upgrades: AI bands match the approved catalogue, so the planner cannot drift from it', () => {
+  const names = Object.keys(catalogue.bands).map((k) => k.toLowerCase()).sort();
+  assert.deepEqual(Object.keys(P.AI_BANDS).sort(), names);
+  for (const [name, band] of Object.entries(catalogue.bands)) {
+    assert.equal(P.AI_BANDS[name.toLowerCase()].assistant, band.assistant, `${name} Assistant`);
+    assert.equal(P.AI_BANDS[name.toLowerCase()].agent, band.agentTeam, `${name} Agent Team`);
+  }
+});
+
+test('upgrades: every app upgrade in the catalogue has no price, so the planner shows request quote', () => {
+  const apps = catalogue.upgrades.filter((u) => u.type === 'connected-app');
+  assert.equal(apps.length, 4);
+  for (const app of apps) assert.equal(app.priceMonthly, null, app.id);
+  const r = P.upgradePlan({ ...none, supercharged: true, scheduled: true, sorted: true, skilled: true });
+  assert.equal(r.summary[2].v, 4);
+});
+
+test('upgrades: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 168, valuePerHour: 10000 }).ok, true);
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 169 }).ok, false);
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 10000.01 }).ok, false);
+});
+
+test('upgrades: scenario value is rounded to the cent once, and zero hours give zero', () => {
+  const r = P.upgradePlan({ ...none, hoursSavedPerWeek: 1, valuePerHour: 33.33 });
+  assert.equal(r.summary[3].v, 144.43); // 1 x 52/12 x 33.33 = 144.4333, rounded to the cent
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 50 }).summary[3].v, 0);
+});
 
 test('upgrades: nothing selected is a free foundation with no fees', () => {
   const r = P.upgradePlan(none);
