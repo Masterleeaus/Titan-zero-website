@@ -35,3 +35,5 @@
 /* #46: planner groups are fieldsets, whose default min-width is their widest input. Let them shrink. */
 .planner-group{min-width:0;max-width:100%;margin:0 0 1rem;padding:0;border:0}
 /* #112: brand colours stay for fills, borders and emblems. Text and small icons use a lighter tint of the same hue, which meets WCAG AA (4.5:1) on the dark backgrounds. */
+/* #111: the consent checkbox keeps its size inside the custom tool forms, so its label stays beside it instead of being pushed past the right edge at 768px. */
+.custom-tool-form .check-card input[type=checkbox]{width:22px;min-height:22px;height:22px;flex:0 0 22px}

@@ -11,6 +11,7 @@ Version data: `assets/upgrade-catalogue.json` (version 2026-11-18). That file is
 | Hosted AI Assistant opt-in | Documentation page | `/frontdesk-docs/#assistant` | In development. Not available to buy. |
 | Agent Team permissions | Documentation page | `/frontdesk-docs/#agent-team` | In development. Not available to buy. |
 | Privacy and consent | Own page, linked from the hub and footer | `/frontdesk-privacy/` (overview: `/frontdesk-docs/#privacy`) | Published. Checked against version 3.0.128. Consent for hosted AI is described, not yet built. |
+| Data ownership, export and ending | Hub FAQ, built from `assets/frontdesk-content.json` (issue #8) | `/frontdesk/` | Partly covered. No export tool is described. Removal behaviour is not described. |
 | Billing cancellation | Own page, linked from the hub and footer | `/frontdesk-billing/` (overview: `/frontdesk-docs/#billing`) | Published. Says no billing is live. Terms are drafts pending legal review. |
 | Troubleshooting | Own page, linked from the hub and footer | `/frontdesk-troubleshooting/` (overview: `/frontdesk-docs/#troubleshooting`) | Published. Checked against version 3.0.128. |
 | Service status | Own page, linked from the hub and footer | `/frontdesk-status/` (overview: `/frontdesk-docs/#status`) | Published. States that no status page exists and that hosted services are not live. |
