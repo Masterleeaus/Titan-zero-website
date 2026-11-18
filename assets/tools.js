@@ -135,11 +135,12 @@ const clear=root.querySelector('[data-clear-profile]');
 if(clear)clear.addEventListener('click',()=>{try{localStorage.removeItem(storageKey);localStorage.removeItem('titanBusinessToolProfileV2');localStorage.removeItem(engine.formulas.QUOTE_STORE_KEY);}catch(_){}profile.verticals=['cleaning'];profile.activeVertical=industryById[query.get('industry')]?query.get('industry'):'cleaning';if(profile.activeVertical!=='cleaning')profile.verticals.push(profile.activeVertical);profile.businessName='';profile.serviceName='';profile.assumptions={};drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
 drawSummary();
 }
+// Keyboard focus (#108): a refused input moves focus to its error message; a result moves focus to the result.
 function showCalculatorError(resultElement,definition,message){
 resultElement.replaceChildren(textNode('p',definition?definition.title:'Calculator','eyebrow'),textNode('h2','Check your numbers'),textNode('p',message,'form-error'));
 resultElement.setAttribute('role','alert');
-resultElement.setAttribute('tabindex','-1');
-resultElement.focus();
+const error=resultElement.querySelector('.form-error');
+if(error){error.tabIndex=-1;error.focus();}
 }
 function showCalculatorResult(resultElement,definition,outcome,values){
 resultElement.removeAttribute('role');
@@ -156,8 +157,7 @@ notes.append(textNode('li',`Industry context: ${currentIndustry().name}. ${curre
 resultElement.append(notes);
 const context={tool:definition.title,vertical:currentIndustry().name,business:profile.businessName,service:profile.serviceName,result:displayed+' — '+outcome.label,calculation:outcome.math};
 addHandoffButtons(resultElement,context);
-resultElement.setAttribute('tabindex','-1');
-resultElement.focus();
+resultElement.tabIndex=-1;resultElement.focus();
 }
 function initializeCalculator(root){
 setupContext(root);

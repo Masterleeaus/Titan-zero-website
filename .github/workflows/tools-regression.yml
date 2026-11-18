@@ -14,6 +14,7 @@ on:
       - 'scripts/tools-release-check.mjs'
       - 'assets/styles.css'
       - 'assets/site-data.js'
+      - 'scripts/tools-browser-check.mjs'
       - 'scripts/site-gate.mjs'
       - 'tests/**'
       - '.github/workflows/tools-regression.yml'
@@ -65,3 +66,26 @@ jobs:
           PUPPETEER_DIR: ${{ runner.temp }}/tools-deps
           CHROME_PATH: /usr/bin/google-chrome
         run: node scripts/tools-release-check.mjs
+  browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright into a temporary folder (not a repository dependency)
+        run: npm install --prefix "$RUNNER_TEMP/pw" playwright@1.63.0 --no-audit --no-fund
+      - name: Install Chromium for Playwright
+        run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Browser run on the 19 calculator pages at phone and desktop widths (#108)
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/pw
+          TOOLS_BROWSER_REPORT: ${{ runner.temp }}/tools-browser-report.json
+        run: node scripts/tools-browser-check.mjs
+      - name: Keep the browser report for the release checklist
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tools-browser-report
+          path: ${{ runner.temp }}/tools-browser-report.json
+          if-no-files-found: warn

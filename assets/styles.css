@@ -37,3 +37,8 @@
 /* #112: brand colours stay for fills, borders and emblems. Text and small icons use a lighter tint of the same hue, which meets WCAG AA (4.5:1) on the dark backgrounds. */
 /* #111: the consent checkbox keeps its size inside the custom tool forms, so its label stays beside it instead of being pushed past the right edge at 768px. */
 .custom-tool-form .check-card input[type=checkbox]{width:22px;min-height:22px;height:22px;flex:0 0 22px}
+/* Print (#108): keep the result, its figures and the form inputs; hide the handoff buttons, handoff review and assumptions file controls. */
+@media print{.result-actions,.handoff-review,.handoff-offer,.assumptions-tools{display:none!important}}
+.assumptions-tools{display:grid;gap:12px;margin-top:24px}.assumptions-tools input[type=file]{max-width:100%}
+/* Calculator layout (#108): wide planner tables scroll inside their own column instead of running under the result column. */
+.tool-fields>*{min-width:0}.table-scroller{width:100%;min-width:0}
