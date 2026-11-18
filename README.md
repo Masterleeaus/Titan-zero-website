@@ -74,3 +74,9 @@ The site carries an evolving toolkit of calculators and document helpers: servic
 - **19-tool programme and privacy:** [#22](https://github.com/Masterleeaus/Titan-zero-website/issues/22), [#43](https://github.com/Masterleeaus/Titan-zero-website/issues/43), [#46](https://github.com/Masterleeaus/Titan-zero-website/issues/46).
 
 View [all open website issues](https://github.com/Masterleeaus/Titan-zero-website/issues?q=is%3Aissue+is%3Aopen). Each issue requires real implementation/test acceptance. **No task becomes complete merely because a README or product page now describes it accurately.**
+
+## Find every README and developer guide
+
+- **[Complete README directory](docs/README_DIRECTORY.md)** — direct links to every README-style file in this repository, including component, test, vendor and historical documentation.
+- **[Documentation index](docs/README.md)** — curated entry point to the main technical guides and developer workflows.
+- **[Seven-repository platform map](https://github.com/Masterleeaus/Central/blob/main/docs/PLATFORM_MAP.md)** — cross-product architecture, ownership and integration boundaries.
