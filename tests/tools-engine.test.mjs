@@ -62,19 +62,24 @@ test('missed calls: 120 enquiries, 12% missed, 30% converted, A$350', () => {
   assert.match(r.notes[0], /14\.4 enquiries/);
 });
 
+// Live funnel (#105): the lead-to-completed rate is the product of four stage shares.
+// Stages 100/100/100/20 give 20%; 100/100/100/23 give 23%.
+const stages = (completed) => ({ base_contacted: 100, base_qualified: 100, base_booked: 100, base_completed: completed,
+  alt_contacted: 100, alt_qualified: 100, alt_booked: 100, alt_completed: completed });
+
 test('lead conversion: 100 leads moving from 20% to 23% at A$450', () => {
-  const r = E.calculators.leads({ leads: 100, current: 20, target: 23, value: 450 });
+  const r = E.calculators.leads({ leads: 100, value: 450, ...stages(20), alt_completed: 23 });
   assert.equal(r.metric, 1350);
 });
 
 test('lead conversion: a lower scenario shows a negative difference with a true minus sign', () => {
-  const r = E.calculators.leads({ leads: 100, current: 25, target: 20, value: 450 });
+  const r = E.calculators.leads({ leads: 100, value: 450, ...stages(25), alt_completed: 20 });
   assert.equal(r.metric, -2250);
   assert.equal(E.formatMoney(r.metric), '−A$2,250.00');
 });
 
 test('invoice collection: 80 invoices x A$520 with 18% beyond terms', () => {
-  const r = E.calculators.invoice({ invoices: 80, avg: 520, overdue: 18, chase: 7 });
+  const r = E.calculators.invoice({ invoices: 80, avg: 520, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3, chase: 7 });
   assert.equal(r.metric, 7488);
   assert.equal(r.notes[0], 'Monthly invoicing represented: A$41,600.00.');
 });
@@ -213,6 +218,45 @@ test('profile migration: unknown verticals, long or control-character text and m
   const malformed = E.migrateProfile({ v3: 'text', v2: [1, 2], industryIds: ['cleaning'] });
   assert.deepEqual(malformed.profile.verticals, ['cleaning']);
   assert.equal(malformed.migratedFromV2, false);
+});
+
+// #105: every funnel stage and ageing bucket refuses blanks, NaN, infinity, negatives and out-of-range values.
+const LIVE_PERCENT_KEYS = {
+  leads: ['contribPct', 'base_contacted', 'base_qualified', 'base_booked', 'base_completed',
+    'alt_contacted', 'alt_qualified', 'alt_booked', 'alt_completed'],
+  invoice: ['age_d0_30', 'age_d31_60', 'age_d61_90', 'age_d90', 'collect_d0_30', 'collect_d31_60', 'collect_d61_90', 'collect_d90'],
+};
+const LIVE_DEFAULTS = {
+  leads: { leads: '100', value: '450', contribPct: '100', base_contacted: '90', base_qualified: '50', base_booked: '60',
+    base_completed: '80', alt_contacted: '92', alt_qualified: '50', alt_booked: '62', alt_completed: '80' },
+  invoice: { invoices: '80', avg: '520', age_d0_30: '0', age_d31_60: '10', age_d61_90: '5', age_d90: '3',
+    collect_d0_30: '95', collect_d31_60: '80', collect_d61_90: '50', collect_d90: '20', chase: '7' },
+};
+
+test('live funnel and ageing fields (#105) reject blanks, NaN, infinity, negatives and out-of-range values', () => {
+  for (const [tool, keys] of Object.entries(LIVE_PERCENT_KEYS)) {
+    for (const key of keys) {
+      for (const bad of ['', '   ', 'NaN', 'Infinity', '-1', '100.5', '101']) {
+        const input = { ...LIVE_DEFAULTS[tool], [key]: bad };
+        const checked = E.validate(tool, input);
+        assert.equal(checked.ok, false, tool + '.' + key + ' must refuse ' + JSON.stringify(bad));
+        assert.ok(checked.errors.some((error) => error.key === key), tool + '.' + key + ' error names the field');
+      }
+    }
+  }
+  for (const bad of ['', 'NaN', 'Infinity', '-5', '1000001']) {
+    assert.equal(E.validate('leads', { ...LIVE_DEFAULTS.leads, leads: bad }).ok, false, 'leads count ' + bad);
+  }
+  for (const bad of ['', 'NaN', '-0.01', '1000000000.01']) {
+    assert.equal(E.validate('invoice', { ...LIVE_DEFAULTS.invoice, avg: bad }).ok, false, 'invoice average ' + bad);
+  }
+});
+
+test('live funnel and ageing defaults (#105) still validate, and boundary values 0 and 100 are accepted', () => {
+  assert.equal(E.validate('leads', LIVE_DEFAULTS.leads).ok, true);
+  assert.equal(E.validate('invoice', LIVE_DEFAULTS.invoice).ok, true);
+  assert.equal(E.validate('leads', { ...LIVE_DEFAULTS.leads, alt_booked: '0', base_completed: '100' }).ok, true);
+  assert.equal(E.validate('invoice', { ...LIVE_DEFAULTS.invoice, age_d90: '100' }).ok, true);
 });
 
 test('engine and tools page code make no network or beacon calls with calculation data', () => {

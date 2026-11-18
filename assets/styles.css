@@ -15,6 +15,12 @@
 .tool-directory-empty{font-size:18px;color:#c6d3e6;margin-bottom:40px}
 .tool-next{margin-top:18px;font-size:18px;line-height:1.7}
 .tool-next a{color:#dbe9ff;text-decoration:underline;text-underline-offset:4px}
+.tool-upgrades{margin:64px 0 40px}
+.tool-upgrade-list{display:grid;gap:12px;list-style:none;padding:0;margin:0 0 16px}
+.tool-upgrade-list li{display:grid;gap:4px;padding:14px 16px;border:1px solid #263044;border-radius:8px;background:#0e131d}
+.tool-upgrade-list a{min-height:44px;display:inline-flex;align-items:center;color:#dbe9ff;text-decoration:underline;text-underline-offset:4px}
+.tool-upgrade-list span,.tool-upgrade-list small{font-size:17px;color:#c6d3e6}
+@media (min-width:720px){.tool-upgrade-list{grid-template-columns:1fr 1fr}}
 .tool-entry .fine-print{font-size:18px;margin-top:14px}
 @media (max-width:480px){.container.tools-shell{width:calc(100% - 40px)}.tool-category-nav a{min-height:48px}}
 
