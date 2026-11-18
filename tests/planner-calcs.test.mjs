@@ -162,7 +162,7 @@ test('travel: rejects a negative wage and out-of-range days', () => {
 });
 
 // ---- #37 recurring service revenue ------------------------------------------
-const recurring = { clients: 0, frequency: 'monthly', price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
+const recurring = { weeklyClients: 0, fortnightlyClients: 0, monthlyClients: 0, price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, newFrequency: 'monthly', collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
 
 test('recurring: zero clients give zero revenue, including the deferred figure', () => {
   const r = P.recurringRevenue(recurring);
@@ -172,12 +172,12 @@ test('recurring: zero clients give zero revenue, including the deferred figure',
 });
 
 test('recurring: weekly clients use 52 visits a year, spread over 12 months', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 10, frequency: 'weekly', price: 100 });
+  const r = P.recurringRevenue({ ...recurring, weeklyClients: 10, price: 100 });
   assert.equal(r.headline.v, 51999.96); // 10 x 52/12 x 100 x 12
 });
 
 test('recurring: 100% churn with new clients leaves only the new clients in month 2 onward', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 50, frequency: 'monthly', price: 10, churnPct: 100, newClients: 3 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 50, price: 10, churnPct: 100, newClients: 3 });
   const rows = r.tables[0].rows;
   assert.equal(rows[0][1].v, 50);
   assert.equal(rows[1][1].v, 3);
@@ -185,14 +185,14 @@ test('recurring: 100% churn with new clients leaves only the new clients in mont
 });
 
 test('recurring: a rate change applies only from the chosen month', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, rateChangePct: 10, rateChangeMonth: 7 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, rateChangePct: 10, rateChangeMonth: 7 });
   const rows = r.tables[0].rows;
   assert.equal(rows[5][2].v, 100);
   assert.equal(rows[6][2].v, 110);
 });
 
 test('recurring: unpaid share is deferred, not counted as cash received', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, collectedSamePct: 50 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, collectedSamePct: 50 });
   assert.equal(summary(r, 'Deferred receipts at end of month 12').v, 50);
   assert.equal(r.tables[0].rows[0][6].v, 50); // month 1 cash received is half
 });
@@ -376,6 +376,27 @@ test('customer response: pairing reports differences for bookings and staff hour
   const pairs = P.pairCustomer(a, b);
   assert.equal(pairs.length, 2);
   assert.equal(pairs[1].v, -10);
+});
+
+test('customer response: opt-out, quiet-hours and Spam Act narrative is shown with every result', () => {
+  const r = P.customerResponse({ ...cust, enquiries: 10 });
+  const notes = r.notes.join(' ');
+  assert.match(notes, /opt-out/);
+  assert.match(notes, /quiet hours/);
+  assert.match(notes, /Spam Act 2003/);
+  assert.match(notes, /No AI benefit is assumed or guaranteed/);
+});
+
+test('customer response: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000000 }).ok, true);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000001 }).ok, false);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 10, followUps: 6 }).ok, false);
+});
+
+test('customer response: money is rounded to the cent once, with no float drift', () => {
+  // 3 completed bookings at A$19.99 less A$0.10 variable cost each = A$59.67; no consent, so no messages
+  const r = P.customerResponse({ ...cust, enquiries: 3, reachPhone: 100, consentPct: 0, qualifiedPct: 100, bookPct: 100, avgJobValue: 19.99, jobVariableCost: 0.1, costPerMessage: 0.1 });
+  assert.equal(r.summary[0].v, 59.67);
 });
 
 // ---- #41 upgrade configurator -----------------------------------------------
