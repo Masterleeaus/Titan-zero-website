@@ -56,6 +56,8 @@ try {
       page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
       await page.setViewport({ width, height, deviceScaleFactor: 1 });
       await page.goto(BASE + '/tools/' + slug + '/', { waitUntil: 'load' });
+      // Use a wide sans-serif face, so widths match the wider fallback fonts on CI runners.
+      await page.addStyleTag({ content: '*{font-family:"DejaVu Sans",sans-serif !important}' });
       const label = slug + ' @' + width;
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check('no horizontal scroll: ' + label, overflow <= 1, 'overflow ' + overflow + 'px');

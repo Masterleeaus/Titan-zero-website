@@ -32,3 +32,5 @@
 /* #46: grid children may shrink below their content so calculators fit 320px screens. */
 .tool-workspace>*,.custom-tool-layout>*{min-width:0}
 .check-card>span,.check-card>small{min-width:0;overflow-wrap:anywhere}
+/* #46: planner groups are fieldsets, whose default min-width is their widest input. Let them shrink. */
+.planner-group{min-width:0;max-width:100%;margin:0 0 1rem;padding:0;border:0}
