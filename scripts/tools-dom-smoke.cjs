@@ -55,6 +55,15 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   return { result, errors, alerts, window, stored: Object.keys(window.localStorage).sort() };
 }
 
+// 0. Job profitability (#26): write-off comes off net revenue once; discount plus write-off above 100% is refused.
+{
+  const wo = run('pages/tool-job-profitability.html', { fields: { jobRevenue: 650, labour: 220, materials: 110, travel: 45, writeOffPct: 10 } });
+  check('profit write-off 10% gives A$210 contribution', /A\$210/.test(wo.result), wo.result.slice(0, 160));
+  check('profit scenario row without write-off is shown', /Scenario: contribution with no discount or write-off/.test(wo.result), wo.result.slice(0, 160));
+  const over = run('pages/tool-job-profitability.html', { fields: { jobRevenue: 650, labour: 220, materials: 110, travel: 45, discountPct: 60, writeOffPct: 50 } });
+  check('profit discount plus write-off above 100% refused', /cannot exceed 100%/.test(over.result), over.result.slice(0, 160));
+}
+
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
 {
   const r = run('pages/tool-break-even.html', { fields: { fixed: 1, price: 100.1, variable: 100 } });

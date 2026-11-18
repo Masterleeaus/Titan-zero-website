@@ -501,7 +501,9 @@
         ['Billable hours per month (roster)', billableHours.toFixed(1)],
         ['Employee cost per billable hour', employeeCostPerBillableHour === null ? 'n/a' : employeeCostPerBillableHour],
         ['Contractor cost at the same billable hours', contractorRate > 0 ? contractorCost : 'Not entered'],
-        ['Additional jobs/month to cover the cost', jobsNeeded === null ? 'Not achievable' : jobsNeeded]
+        ['Contractor or employee at these hours', contractorRate > 0 ? (contractorCost < monthlyCost ? 'Contractor rate is lower' : 'Employee cost is lower or equal') : 'Not compared (no contractor rate entered)'],
+        ['Additional jobs/month to cover the cost', jobsNeeded === null ? 'Not achievable' : jobsNeeded],
+        ['Job hours/month needed for those extra jobs', extraHours === null ? 'Not achievable' : extraHours.toFixed(1) + ' hours']
       ]
     };
   }
@@ -509,11 +511,16 @@
   // ---------------------------------------------------------------- #26 job profitability
   // Direct-cost contribution is kept as its own metric. Tax is removed only when
   // the entered revenue includes it. Overhead is subtracted once, after contribution.
+  // Discount and write-off both come off the same net revenue, so they cannot exceed 100% together.
+  // The target gross margin is applied to direct cost only (gross margin is before overhead).
+  // The after-overhead target is shown separately so the two measures are not mixed.
   function jobProfitability(v) {
     const revenueEntered = nonNeg(v.jobRevenue, 'Job revenue');
     const taxInclusive = v.taxMode === 'inclusive';
     const taxRate = pct(v.taxRate ?? 10, 'Tax rate');
-    const discount = pct(v.discountPct ?? 0, 'Discount or write-off');
+    const discount = pct(v.discountPct ?? 0, 'Discount');
+    const writeOff = pct(v.writeOffPct ?? 0, 'Write-off');
+    if (discount + writeOff > 100) fail('Discount and write-off together cannot exceed 100% of revenue.');
     const labour = nonNeg(v.labour, 'Labour cost');
     const materials = nonNeg(v.materials, 'Materials');
     const travel = nonNeg(v.travel, 'Travel/other direct cost');
@@ -521,35 +528,48 @@
     const target = pct(v.targetMarginPct ?? 30, 'Target gross margin');
 
     const taxPart = taxInclusive ? revenueEntered - revenueEntered / (1 + taxRate / 100) : 0;
-    const netRevenueBeforeDiscount = revenueEntered - taxPart;
-    const discountAmount = netRevenueBeforeDiscount * discount / 100;
-    const netRevenue = netRevenueBeforeDiscount - discountAmount;
+    const netRevenueBeforeAdjust = revenueEntered - taxPart;
+    const discountAmount = netRevenueBeforeAdjust * discount / 100;
+    const writeOffAmount = netRevenueBeforeAdjust * writeOff / 100;
+    const netRevenue = netRevenueBeforeAdjust - discountAmount - writeOffAmount;
     const directCost = labour + materials + travel;
     const contribution = netRevenue - directCost;
     const netProfit = contribution - overhead;
     const grossMarginPct = netRevenue > 0 ? contribution / netRevenue * 100 : null;
     const markupPct = directCost > 0 ? contribution / directCost * 100 : null;
-    const fullCost = directCost + overhead;
-    const priceForTarget = target < 100 ? fullCost / (1 - target / 100) : null;
+    // Gross margin = contribution / net revenue, so the price for a target gross margin is direct cost / (1 - target).
+    const priceForTarget = target < 100 ? directCost / (1 - target / 100) : null;
+    // Net margin after overhead: (net revenue - direct cost - overhead) / net revenue = target.
+    const priceForNetTarget = target < 100 ? (directCost + overhead) / (1 - target / 100) : null;
+    const contributionNoAdjust = netRevenueBeforeAdjust - directCost;
+
+    // Assertions: every entered euro is accounted for once, and profit is revenue less costs, not double counted.
+    const revenueReconciles = Math.abs(revenueEntered - (taxPart + discountAmount + writeOffAmount + netRevenue)) < 1e-6;
+    const profitReconciles = Math.abs(netProfit - (netRevenue - directCost - overhead)) < 1e-6;
+    if (!revenueReconciles || !profitReconciles) fail('The job figures do not reconcile. Check the entries.');
 
     return {
       metric: contribution,
       directCost,
       contribution,
+      contributionNoAdjust,
       overhead,
       netProfit,
       netRevenue,
       taxInside: taxPart,
       discountAmount,
+      writeOffAmount,
       grossMarginPct,
       markupPct,
       priceForTarget,
+      priceForNetTarget,
       targetGap: priceForTarget === null ? null : priceForTarget - netRevenue,
-      reconciles: Math.abs(netProfit - (netRevenue - directCost - overhead)) < 1e-9,
+      reconciles: revenueReconciles && profitReconciles,
       rows: [
-        ['Net revenue (tax removed, discount applied)', netRevenue],
+        ['Net revenue (tax removed, discount and write-off applied)', netRevenue],
         ['Direct costs', directCost],
-        ['Contribution before overhead', contribution],
+        ['Contribution before overhead (direct-cost contribution)', contribution],
+        ['Scenario: contribution with no discount or write-off', contributionNoAdjust],
         ['Overhead allocated', overhead],
         ['Net profit for this job', netProfit]
       ]

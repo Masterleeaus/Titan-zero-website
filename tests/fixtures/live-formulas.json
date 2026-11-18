@@ -142,8 +142,16 @@
           "Not entered"
         ],
         [
+          "Contractor or employee at these hours",
+          "Not compared (no contractor rate entered)"
+        ],
+        [
           "Additional jobs/month to cover the cost",
           36
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
+          "90.0 hours"
         ]
       ]
     }
@@ -179,8 +187,16 @@
           8450
         ],
         [
+          "Contractor or employee at these hours",
+          "Employee cost is lower or equal"
+        ],
+        [
           "Additional jobs/month to cover the cost",
           60
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
+          "180.0 hours"
         ]
       ]
     }
@@ -216,7 +232,15 @@
           "Not entered"
         ],
         [
+          "Contractor or employee at these hours",
+          "Not compared (no contractor rate entered)"
+        ],
+        [
           "Additional jobs/month to cover the cost",
+          "Not achievable"
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
           "Not achievable"
         ]
       ]
@@ -232,19 +256,22 @@
       "metric": 275,
       "directCost": 375,
       "contribution": 275,
+      "contributionNoAdjust": 275,
       "overhead": 0,
       "netProfit": 275,
       "netRevenue": 650,
       "taxInside": 0,
       "discountAmount": 0,
+      "writeOffAmount": 0,
       "grossMarginPct": 42.30769230769231,
       "markupPct": 73.33333333333333,
       "priceForTarget": 535.7142857142858,
+      "priceForNetTarget": 535.7142857142858,
       "targetGap": -114.28571428571422,
       "reconciles": true,
       "rows": [
         [
-          "Net revenue (tax removed, discount applied)",
+          "Net revenue (tax removed, discount and write-off applied)",
           650
         ],
         [
@@ -252,7 +279,11 @@
           375
         ],
         [
-          "Contribution before overhead",
+          "Contribution before overhead (direct-cost contribution)",
+          275
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
           275
         ],
         [
@@ -272,19 +303,22 @@
       "metric": 195,
       "directCost": 375,
       "contribution": 195,
+      "contributionNoAdjust": 225,
       "overhead": 40,
       "netProfit": 155,
       "netRevenue": 570,
       "taxInside": 60,
       "discountAmount": 30,
+      "writeOffAmount": 0,
       "grossMarginPct": 34.21052631578947,
       "markupPct": 52,
-      "priceForTarget": 638.4615384615385,
-      "targetGap": 68.46153846153845,
+      "priceForTarget": 576.9230769230769,
+      "priceForNetTarget": 638.4615384615385,
+      "targetGap": 6.923076923076906,
       "reconciles": true,
       "rows": [
         [
-          "Net revenue (tax removed, discount applied)",
+          "Net revenue (tax removed, discount and write-off applied)",
           570
         ],
         [
@@ -292,8 +326,12 @@
           375
         ],
         [
-          "Contribution before overhead",
+          "Contribution before overhead (direct-cost contribution)",
           195
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
+          225
         ],
         [
           "Overhead allocated",
@@ -312,19 +350,22 @@
       "metric": 0,
       "directCost": 0,
       "contribution": 0,
+      "contributionNoAdjust": 0,
       "overhead": 0,
       "netProfit": 0,
       "netRevenue": 0,
       "taxInside": 0,
       "discountAmount": 0,
+      "writeOffAmount": 0,
       "grossMarginPct": null,
       "markupPct": null,
       "priceForTarget": 0,
+      "priceForNetTarget": 0,
       "targetGap": 0,
       "reconciles": true,
       "rows": [
         [
-          "Net revenue (tax removed, discount applied)",
+          "Net revenue (tax removed, discount and write-off applied)",
           0
         ],
         [
@@ -332,7 +373,11 @@
           0
         ],
         [
-          "Contribution before overhead",
+          "Contribution before overhead (direct-cost contribution)",
+          0
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
           0
         ],
         [
