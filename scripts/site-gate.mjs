@@ -8,11 +8,13 @@
 // coverage and targets; local href/src targets exist; one h1 and no heading-level jumps;
 // every img has alt; approved upgrade catalogue (assets/upgrade-catalogue.json) matches the
 // Front Desk hub; only approved A$ amounts appear anywhere on published pages.
+// Also runs scripts/seo-audit.mjs (titles, descriptions, Open Graph/Twitter, JSON-LD, anchors, robots).
 // Rollback: see docs/PUBLISHING.md.
 
 import { readFileSync, mkdirSync, readdirSync, existsSync, statSync, copyFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { auditSite } from './seo-audit.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = 'https://titanzero.io';
@@ -168,6 +170,9 @@ export function check(root = ROOT) {
       if (!APPROVED_AMOUNTS.has(amount)) fail(`catalogue band ${band} has unapproved amount ${amount}`);
     }
   }
+
+  // 9. SEO and link audit (titles, descriptions, Open Graph/Twitter, JSON-LD, anchors, sitemap, robots).
+  for (const problem of auditSite(root).problems) fail(problem);
 
   return { problems, pages: published.length };
 }
