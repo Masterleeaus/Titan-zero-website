@@ -97,10 +97,12 @@ test('fixture: job cost sheet baseline keeps costs and price separate and refuse
   const base = { workers: 2, hours: 2, rate: 45, materials: 0, travel: 0, other: 0, overhead: 0, price: 300, target: 30 };
   assert.equal(E.validate('jobcost', base).ok, true);
   assert.equal(E.validate('jobcost', { ...base, rate: NaN }).ok, false);
-  const out = E.jobCost(E.validate('jobcost', base).values);
-  assert.equal(out.direct, 180);
-  assert.equal(out.total, 180);
-  assert.equal(out.contribution, 120);
-  assert.equal(out.targetPrice, 257.14);
+  // Two workers for 2 hours at A$45 is one labour line of 4 hours (#104: engine.formulas.jobCostSheet).
+  const out = E.formulas.jobCostSheet({ roles: [{ hours: 4, rate: 45 }], materials: 0, travel: 0, equipment: 0, overhead: 0, price: 300, targetMarginPct: 30 });
+  assert.equal(out.directCost, 180);
+  assert.equal(out.totalCost, 180);
+  assert.equal(out.margin, 120);
+  // Target price is rounded up to the cent, as the service pricing tool does (#32). 180 / 0.7 = 257.142...
+  assert.equal(out.targetPrice, 257.15);
   assert.ok(Object.keys(rules).every((k) => k in base));
 });

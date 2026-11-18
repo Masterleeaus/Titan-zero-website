@@ -65,13 +65,22 @@
   <url><loc>https://titanzero.io/resources/planning-service-capacity/</loc></url>
   <url><loc>https://titanzero.io/resources/handling-service-enquiries/</loc></url>
   <url><loc>https://titanzero.io/resources/invoice-follow-up/</loc></url>
+  <url><loc>https://titanzero.io/resources/google-profile-photos/</loc></url>
+  <url><loc>https://titanzero.io/resources/quote-follow-up/</loc></url>
+  <url><loc>https://titanzero.io/resources/google-review-replies/</loc></url>
   <url><loc>https://titanzero.io/apps/synced/</loc></url>
   <url><loc>https://titanzero.io/apps/skilled/</loc></url>
   <url><loc>https://titanzero.io/apps/solo/</loc></url>
   <url><loc>https://titanzero.io/terms/</loc></url>
   <url><loc>https://titanzero.io/fair-use/</loc></url>
   <url><loc>https://titanzero.io/frontdeskai/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-docs/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://titanzero.io/frontdeskagent/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-compatibility/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-billing/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-troubleshooting/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-status/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://titanzero.io/frontdesk-privacy/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://titanzero.io/quotes-pricing-terms/</loc></url>
   <url><loc>https://titanzero.io/invoices-payments-terms/</loc></url>
   <url><loc>https://titanzero.io/workspace-customers-terms/</loc></url>

@@ -1,15 +1,44 @@
 // Deterministic tests for the calculation helpers behind issues #24-#33.
-// Loads assets/tool-calcs.js into a clean VM context: no DOM, no network.
+// The formulas live in assets/tools-engine.js (engine.formulas, #104). No DOM, no network.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 
-const source = readFileSync(new URL('../assets/tool-calcs.js', import.meta.url), 'utf8');
-const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
+const require = createRequire(import.meta.url);
+const C = require('../assets/tools-engine.js').formulas;
+// The service pricing tool (issue #34) is the reference for cents-based job cost.
+const P = require('../assets/planner-calcs.js');
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, message || `${actual} != ${expected}`);
 
 // ---- #24 admin cost
+test('admin: on-costs default to zero, so the original value is unchanged', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 45 });
+  close(r.loadedRate, 45);
+  close(r.capacityValue, 1950);
+  close(C.adminCost({ adminHours: 10, adminRate: 45, oncostPct: 0 }).capacityValue, 1950);
+});
+
+test('admin: on-costs raise the loaded rate and every value that uses it', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 40, oncostPct: 25, reclaimPct: 50 });
+  close(r.loadedRate, 50, 'A$40 wage plus 25% on-costs');
+  close(r.capacityValue, 10 * 52 / 12 * 50);
+  close(r.recoveredValue, 10 * 0.5 * 52 / 12 * 50);
+});
+
+test('admin: weeks convert to months with 52 / 12 (an average month, not a calendar month)', () => {
+  const r = C.adminCost({ adminHours: 12, adminRate: 10 });
+  close(r.weeksPerMonth, 52 / 12);
+  close(r.capacityValue, 12 * 52 / 12 * 10);
+});
+
+test('admin: on-costs must be a number between 0 and 200 percent', () => {
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: -1 }), /at least 0|must be/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 201 }), /must be 0 to 200/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 'x' }), /must be a number/);
+});
+
 test('admin: default inputs reproduce the original hours x 52/12 x rate value', () => {
   const r = C.adminCost({ adminHours: 10, adminRate: 45 });
   close(r.metric, 10 * 52 / 12 * 45);
@@ -74,6 +103,23 @@ test('hiring: contractor comparison uses the same billable hours', () => {
   assert.equal(typeof r.contractorCheaper, 'boolean');
 });
 
+test('hiring: extra job hours are whole jobs times job duration, and zero margin gives none', () => {
+  const r = C.hiringCost({ salary: 52000, oncost: 0, margin: 100, jobHours: 2 });
+  assert.equal(r.jobsNeeded, Math.ceil(52000 / 12 / 100));
+  close(r.extraHours, r.jobsNeeded * 2);
+  const none = C.hiringCost({ salary: 65000, oncost: 18, margin: 0, jobHours: 2 });
+  assert.equal(none.extraHours, null);
+  assert.equal(C.hiringCost({ salary: 65000, oncost: 18, margin: -40 }).contractorCheaper, null);
+});
+
+test('hiring: contractor verdict is only given when a contractor rate is entered', () => {
+  assert.equal(C.hiringCost({ salary: 65000, oncost: 18, margin: 100 }).contractorCheaper, null);
+  const cheap = C.hiringCost({ salary: 65000, oncost: 18, margin: 100, contractorRate: 1 });
+  assert.equal(cheap.contractorCheaper, true);
+  const dear = C.hiringCost({ salary: 65000, oncost: 18, margin: 100, contractorRate: 500 });
+  assert.equal(dear.contractorCheaper, false);
+});
+
 test('hiring: zero paid hours is refused rather than dividing by zero', () => {
   assert.throws(() => C.hiringCost({ salary: 65000, oncost: 18, margin: 100, paidHours: 0 }), /above zero/);
 });
@@ -112,9 +158,50 @@ test('profit: markup and gross margin are labelled separately', () => {
   close(r.markupPct, 50);
 });
 
-test('profit: target margin gives the price needed including overhead', () => {
+test('profit: target gross margin prices direct cost only, before overhead', () => {
   const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, overhead: 20, targetMarginPct: 40 });
-  close(r.priceForTarget, 120 / 0.6);
+  close(r.priceForTarget, 100 / 0.6);
+  close(r.targetGap, 100 / 0.6 - 300);
+});
+
+test('profit: after-overhead target is shown separately and includes overhead', () => {
+  const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, overhead: 20, targetMarginPct: 40 });
+  close(r.priceForNetTarget, 120 / 0.6);
+  assert.notEqual(r.priceForNetTarget, r.priceForTarget);
+});
+
+test('profit: 100% target gives no price, and the after-overhead target is also absent', () => {
+  const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, targetMarginPct: 100 });
+  assert.equal(r.priceForTarget, null);
+  assert.equal(r.priceForNetTarget, null);
+});
+
+test('profit: write-off reduces net revenue once, separately from discount', () => {
+  const r = C.jobProfitability({ jobRevenue: 200, discountPct: 10, writeOffPct: 5, labour: 100, materials: 0, travel: 0 });
+  close(r.discountAmount, 20);
+  close(r.writeOffAmount, 10);
+  close(r.netRevenue, 170);
+  close(r.contribution, 70);
+});
+
+test('profit: scenario shows contribution with no discount or write-off alongside the entered figures', () => {
+  const r = C.jobProfitability({ jobRevenue: 200, discountPct: 10, writeOffPct: 5, labour: 100, materials: 0, travel: 0 });
+  close(r.contributionNoAdjust, 100);
+  close(r.contribution, 70);
+});
+
+test('profit: discount plus write-off above 100% is refused', () => {
+  assert.throws(() => C.jobProfitability({ jobRevenue: 100, discountPct: 60, writeOffPct: 50, labour: 10, materials: 0, travel: 0 }), /cannot exceed 100%/);
+  const edge = C.jobProfitability({ jobRevenue: 100, discountPct: 60, writeOffPct: 40, labour: 10, materials: 0, travel: 0 });
+  close(edge.netRevenue, 0);
+  assert.equal(edge.grossMarginPct, null);
+});
+
+test('profit: revenue, discount, write-off and tax reconcile with nothing counted twice', () => {
+  const r = C.jobProfitability({ jobRevenue: 220, taxMode: 'inclusive', taxRate: 10, discountPct: 10, writeOffPct: 10, labour: 50, materials: 30, travel: 10, overhead: 15 });
+  close(r.taxInside + r.discountAmount + r.writeOffAmount + r.netRevenue, 220);
+  close(r.netProfit, r.netRevenue - r.directCost - r.overhead);
+  assert.equal(r.reconciles, true);
 });
 
 test('profit: zero revenue and zero cost do not produce a margin number', () => {
@@ -255,6 +342,47 @@ test('invoice: zero invoices produce zero value and no hours per thousand', () =
   assert.equal(r.hoursPerThousandBeyondTerms, null);
 });
 
+test('invoice: default terms are 30 days and the 31+ buckets are beyond them', () => {
+  const r = C.invoiceCollection(invoiceInput());
+  assert.equal(r.terms, 30);
+  close(r.beyondTerms, r.outstanding.d31_60 + r.outstanding.d61_90 + r.outstanding.d90);
+});
+
+test('invoice: longer terms count fewer buckets as beyond terms', () => {
+  // 45 days: the 31-60 bucket starts before the due day, so only 61+ counts.
+  const r45 = C.invoiceCollection(invoiceInput({ terms: 45 }));
+  close(r45.beyondTerms, r45.outstanding.d61_90 + r45.outstanding.d90);
+  // 14 days: every bucket except 0-30 starts after the due day.
+  const r14 = C.invoiceCollection(invoiceInput({ terms: 14 }));
+  close(r14.beyondTerms, r14.outstanding.d31_60 + r14.outstanding.d61_90 + r14.outstanding.d90);
+});
+
+test('invoice: a bucket that straddles the due day is not counted as beyond terms', () => {
+  const r = C.invoiceCollection(invoiceInput({ terms: 14, age_d0_30: 20, age_d31_60: 0, age_d61_90: 0, age_d90: 0 }));
+  close(r.beyondTerms, 0);
+});
+
+test('invoice: cash splits into weeks 1-4 and 5-13 and adds back to the 13-week figure', () => {
+  const r = C.invoiceCollection(invoiceInput({ within4: 50 }));
+  close(r.cashIn4Weeks, r.cashIn13Weeks * 0.5);
+  close(r.cashWeeks5To13, r.cashIn13Weeks * 0.5);
+  close(r.cashIn4Weeks + r.cashWeeks5To13, r.cashIn13Weeks);
+});
+
+test('invoice: cash timing share defaults to 60% and terms and shares are range checked', () => {
+  const r = C.invoiceCollection(invoiceInput());
+  close(r.cashIn4Weeks, r.cashIn13Weeks * 0.6);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ within4: 101 })), /must be 0 to 100/);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ terms: -1 })), /at least 0/);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ terms: 121 })), /120 days or fewer/);
+});
+
+test('invoice: no unpaid balances gives zero value, zero cash and no error', () => {
+  const r = C.invoiceCollection(invoiceInput({ age_d31_60: 0, age_d61_90: 0, age_d90: 0 }));
+  close(r.beyondTerms, 0);
+  assert.equal(r.hoursPerThousandBeyondTerms, null);
+});
+
 // ---- #31 quote builder
 test('quote: tax-exclusive GST is applied after the discount, in cents', () => {
   const t = C.quoteTotals({
@@ -356,7 +484,8 @@ test('job cost: zero cost gives a 100% margin and no divide-by-zero', () => {
 
 test('job cost: target price is cost divided by one minus target margin', () => {
   const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 50 }], targetMarginPct: 25 });
-  close(r.targetPrice, 100 / 0.75);
+  // 100 / 0.75 = 133.33..., rounded up to the cent as the service pricing tool does.
+  assert.equal(r.targetPrice, 133.34);
 });
 
 test('job cost: negative inputs and a 100% target margin are refused or treated as no target', () => {
@@ -456,4 +585,67 @@ test('checklist: all ten shipped industries have a template in site-data', () =>
   const ids = data.industries.map(item => item.id);
   assert.equal(ids.length, 10);
   for (const id of ids) assert.ok(Array.isArray(data.checklists[id]) && data.checklists[id].length > 0, id + ' template');
+});
+
+test('job cost: one labour line agrees to the cent with the service pricing tool', () => {
+  const job = C.jobCostSheet({
+    roles: [{ hours: 2, rate: 45 }], materials: 120, travel: 25, equipment: 10, overhead: 30,
+    contingencyPct: 10, targetMarginPct: 25, price: 0
+  });
+  const planner = P.servicePricing({
+    role: 'Technician', labourHours: 2, labourRate: 45, materials: 120, travel: 25, equipment: 10,
+    overhead: 30, contingencyPct: 10, targetMarginPct: 25, discountPct: 0, gst: 'no'
+  });
+  const trueCost = planner.summary.find(r => r.label === 'True unit cost, excluding GST').v;
+  const target = planner.summary.find(r => r.label === 'Recommended price at target margin').v;
+  assert.equal(job.totalCost, trueCost);
+  assert.equal(job.targetPrice, target);
+});
+
+test('job cost: markup on materials is shown as income and never added to cost', () => {
+  const plain = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 0 });
+  const marked = C.jobCostSheet({ roles: [{ hours: 1, rate: 50 }], materials: 100, materialMarkupPct: 20 });
+  assert.equal(marked.totalCost, plain.totalCost);
+  assert.equal(marked.materialMarkupValue, 20);
+  assert.equal(marked.sellPriceMaterials, 120);
+});
+
+test('job cost: contingency applies to direct cost only, not to overhead', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 1, rate: 100 }], contingencyPct: 10, overhead: 50 });
+  assert.equal(r.directCost, 100);
+  assert.equal(r.contingency, 10);
+  assert.equal(r.totalCost, 160);
+});
+
+test('job cost: zero cost and no price give zero totals and no margin without error', () => {
+  const r = C.jobCostSheet({ roles: [], price: 0 });
+  assert.equal(r.totalCost, 0);
+  assert.equal(r.marginPct, null);
+  assert.equal(r.targetPrice, 0);
+});
+
+test('job cost: multi-line labour rounds each line to the cent and adds the lines', () => {
+  const r = C.jobCostSheet({ roles: [{ hours: 2, rate: 10.01 }, { hours: 0.3, rate: 10.01 }] });
+  assert.equal(r.labour, 23.02);
+  assert.equal(r.totalCost, 23.02);
+});
+
+test('quote transfer: sends the ex-GST price as one line and refuses a zero price', () => {
+  const cost = C.jobCostSheet({ roles: [{ hours: 1, rate: 10 }], price: 250 });
+  const record = C.quoteTransferRecord(cost, 'Gutter clean', '2026-11-18T00:00:00Z');
+  assert.equal(record.format, 'titan-zero-quote-line');
+  assert.equal(record.line.unitPrice, 250);
+  assert.equal(record.line.quantity, 1);
+  assert.throws(() => C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 0 }), 'x', 't'), /above zero/);
+});
+
+test('quote transfer: only a well-formed line is read back; text is kept as data', () => {
+  const good = JSON.stringify(C.quoteTransferRecord(C.jobCostSheet({ roles: [], price: 99.5 }), 'x'.repeat(200), 't'));
+  const read = C.readQuoteTransfer(good);
+  assert.equal(read.unitPrice, 99.5);
+  assert.equal(read.description.length, 160);
+  assert.equal(C.readQuoteTransfer('not json'), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'other', line: { description: 'a', unitPrice: 1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 'a', unitPrice: -1 } })), null);
+  assert.equal(C.readQuoteTransfer(JSON.stringify({ format: 'titan-zero-quote-line', line: { description: 7, unitPrice: 1 } })), null);
 });

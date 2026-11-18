@@ -310,18 +310,23 @@
   }
 
   // ---- #37 Recurring service revenue and retention --------------------------
+  // Each contract type keeps its own client count, so weekly, fortnightly and monthly
+  // agreements can sit in one plan. Price and delivery cost are shared across types.
+  const CONTRACT_TYPES = ['weekly', 'fortnightly', 'monthly'];
   const RECURRING_FIELDS = [
-    F.num('clients', 'Active recurring clients now', 0, 'clients', 0, 100000),
-    F.select('frequency', 'Visit frequency', 'monthly', [
+    F.num('weeklyClients', 'Clients on weekly contracts now', 0, 'clients', 0, 100000),
+    F.num('fortnightlyClients', 'Clients on fortnightly contracts now', 0, 'clients', 0, 100000),
+    F.num('monthlyClients', 'Clients on monthly contracts now', 0, 'clients', 0, 100000),
+    F.money('price', 'Price per visit, excluding GST', 0),
+    F.money('variableCost', 'Variable delivery cost per visit delivered', 0),
+    F.pct('cancelPct', 'Visits cancelled by the client', 0),
+    F.pct('churnPct', 'Clients leaving each month (same rate for every contract type)', 0),
+    F.num('newClients', 'New clients onboarded each month', 0, 'clients', 0, 10000),
+    F.select('newFrequency', 'Contract type for new clients', 'monthly', [
       { value: 'weekly', label: 'Weekly (52 visits a year)' },
       { value: 'fortnightly', label: 'Fortnightly (26 visits a year)' },
       { value: 'monthly', label: 'Monthly (12 visits a year)' }
     ]),
-    F.money('price', 'Price per visit, excluding GST', 0),
-    F.money('variableCost', 'Variable delivery cost per visit delivered', 0),
-    F.pct('cancelPct', 'Visits cancelled by the client', 0),
-    F.pct('churnPct', 'Clients leaving each month', 0),
-    F.num('newClients', 'New clients onboarded each month', 0, 'clients', 0, 10000),
     F.pct('collectedSamePct', 'Share of fulfilled revenue received in the same month', 100),
     F.pct('rateChangePct', 'Rate change (can be negative)', 0, -100, 500),
     F.num('rateChangeMonth', 'Month the rate change starts (0 for none, 1 to 12)', 0, 'month', 0, 12, true)
@@ -330,17 +335,21 @@
   function recurringRevenue(v) {
     const err = validate(v, RECURRING_FIELDS);
     if (err) return err;
-    const visits = VISITS_PER_YEAR[v.frequency];
     const priceC = cents(v.price);
     const varC = cents(v.variableCost);
-    let active = v.clients;
+    const active = { weekly: v.weeklyClients, fortnightly: v.fortnightlyClients, monthly: v.monthlyClients };
     let deferredPrev = 0;
     const months = [];
     for (let m = 1; m <= 12; m++) {
-      if (m > 1) active = active * (1 - v.churnPct / 100) + v.newClients;
+      if (m > 1) {
+        for (const t of CONTRACT_TYPES) {
+          active[t] = active[t] * (1 - v.churnPct / 100) + (v.newFrequency === t ? v.newClients : 0);
+        }
+      }
+      const totalActive = CONTRACT_TYPES.reduce((t, k) => t + active[k], 0);
       const rateOn = v.rateChangeMonth > 0 && m >= v.rateChangeMonth;
       const mPriceC = rateOn ? roundC(priceC * (1 + v.rateChangePct / 100)) : priceC;
-      const scheduled = active * visits / 12;
+      const scheduled = CONTRACT_TYPES.reduce((t, k) => t + active[k] * VISITS_PER_YEAR[k] / 12, 0);
       const fulfilled = scheduled * (1 - v.cancelPct / 100);
       const grossC = roundC(scheduled * mPriceC);
       const fulfilledC = roundC(fulfilled * mPriceC);
@@ -348,7 +357,7 @@
       const deferredC = roundC(fulfilledC * (1 - v.collectedSamePct / 100));
       const cashC = fulfilledC - deferredC + deferredPrev;
       deferredPrev = deferredC;
-      months.push({ m, active, mPriceC, grossC, fulfilledC, contribC, cashC, deferredC });
+      months.push({ m, active: totalActive, mPriceC, grossC, fulfilledC, contribC, cashC, deferredC });
     }
     const sum = (key) => months.reduce((t, r) => t + r[key], 0);
     const year = { grossC: sum('grossC'), fulfilledC: sum('fulfilledC'), contribC: sum('contribC'), cashC: sum('cashC') };
@@ -367,8 +376,8 @@
         rows: months.map((r) => [`Month ${r.m}`, { v: r.active, f: 'count1' }, money(r.mPriceC), money(r.grossC), money(r.fulfilledC), money(r.contribC), money(r.cashC), money(r.deferredC)])
       }],
       math: [
-        'Active clients: month 1 = clients now; later months = previous × (1 − churn %) + new clients',
-        'Visits per month = clients × visits per year ÷ 12 (52 weeks a year is spread over 12 months)',
+        'Active clients per contract type: month 1 = clients now; later months = previous × (1 − churn %) + new clients of that type',
+        'Visits per month for a type = its clients × visits per year ÷ 12 (52 weeks a year is spread over 12 months; 26 fortnightly and 12 monthly visits likewise)',
         'Fulfilled visits = visits × (1 − cancellation %)',
         'Gross contract value = all scheduled visits × price; fulfilled revenue = fulfilled visits × price',
         'Deferred receipts = fulfilled revenue not received in the same month; received the next month'
@@ -482,7 +491,8 @@
     const targetHours = availT * targetUtilPct / 100;
     const gapHours = prodT - targetHours;
     const trainingAtRiskC = roundC(r.trainingHours * hc * cents(r.contribPerHour));
-    return { role: r.role, hc, availT, prodT, utilisation, trainingT: r.trainingHours * hc, travelT: r.travelHours * hc, contribC, gapHours, trainingAtRiskC };
+    const prodPerPerson = productivePP;
+    return { role: r.role, hc, availT, prodT, utilisation, trainingT: r.trainingHours * hc, travelT: r.travelHours * hc, contribC, gapHours, trainingAtRiskC, prodPerPerson };
   }
 
   function staffUtilisation(v) {
@@ -498,7 +508,13 @@
     const teamUtil = tot.avail > 0 ? tot.prod / tot.avail * 100 : null;
     const monthC = roundC(tot.contribC * MONTH_FACTOR);
     const teamGap = tot.prod - tot.avail * v.targetUtilPct / 100;
+    // Handoff for the capacity planner: people and productive hours per person per week.
+    // The user copies it to the clipboard; no link or URL carries these figures.
+    const handoff = computed.filter((r) => r.hc > 0).map((r) => ({
+      role: r.role || 'Unnamed role', people: r.hc, productivePerPerson: r.prodPerPerson
+    }));
     return ok({
+      handoff,
       headline: { label: 'Team utilisation (productive ÷ available hours)', ...pct(teamUtil) },
       summary: [
         { label: 'Productive hours per week, all teams', ...hours(tot.prod) },
@@ -525,6 +541,19 @@
         'When training or travel is larger than the available hours, productive hours show as zero.'
       ]
     });
+  }
+
+  // Scenario minus current for the two staff sheets. Money is rounded to the cent once.
+  function pairStaff(a, b) {
+    if (!a.ok || !b.ok) return [];
+    const utilDiff = a.headline.v === null || b.headline.v === null
+      ? text('Not available: no available hours in one scenario')
+      : pct(Math.round((b.headline.v - a.headline.v) * 10) / 10);
+    return [
+      { label: 'Productive hours per week difference (scenario minus current)', ...hours(b.summary[0].v - a.summary[0].v) },
+      { label: 'Contribution per week difference (scenario minus current)', ...money(Math.round((b.summary[1].v - a.summary[1].v) * 100)) },
+      { label: 'Team utilisation difference, in percentage points (scenario minus current)', ...utilDiff }
+    ];
   }
 
   // ---- #40 Customer response and follow-up ---------------------------------
@@ -712,7 +741,7 @@
     'travel-route-cost': { slug: 'travel-route-cost', title: 'Travel and route cost', mode: 'compare', shared: TRAVEL_SHARED, scenarioFields: TRAVEL_SCENARIO, scenarioLabels: ['Current route', 'Route scenario'], calc: travelRoute, pair: pairTravel },
     'recurring-service-revenue': { slug: 'recurring-service-revenue', title: 'Recurring service revenue and retention', mode: 'single', fields: RECURRING_FIELDS, calc: recurringRevenue },
     'cash-flow-forecast': { slug: 'cash-flow-forecast', title: 'Thirteen-week cash flow forecast', mode: 'rows', globalFields: CASH_GLOBAL, rowFields: CASH_ROW, rowCount: 13, rowLabel: 'Week', calc: cashFlow },
-    'staff-utilisation': { slug: 'staff-utilisation', title: 'Staff utilisation and training', mode: 'rows', globalFields: STAFF_GLOBAL, rowFields: STAFF_ROW, rowCount: 3, rowLabel: 'Team', calc: staffUtilisation },
+    'staff-utilisation': { slug: 'staff-utilisation', title: 'Staff utilisation and training', mode: 'rows', globalFields: STAFF_GLOBAL, rowFields: STAFF_ROW, rowCount: 3, rowLabel: 'Team', scenarioLabels: ['Current teams', 'Scenario teams'], calc: staffUtilisation, pair: pairStaff },
     'customer-response': { slug: 'customer-response', title: 'Customer response and follow-up planner', mode: 'compare', shared: CUSTOMER_SHARED, scenarioFields: CUSTOMER_SCENARIO, scenarioLabels: ['Manual workflow', 'Configured workflow'], calc: customerResponse, pair: pairCustomer },
     'titan-zero-upgrade-planner': { slug: 'titan-zero-upgrade-planner', title: 'Titan Zero upgrade cost planner', mode: 'upgrades', upgradeKeys: UPGRADE_KEYS, fields: UPGRADE_FIELDS, calc: upgradePlan }
   };
@@ -721,6 +750,6 @@
     definitions, AI_BANDS, GST_RATE, MONTH_FACTOR, VISITS_PER_YEAR, MAX_AMOUNT,
     validate, runCash,
     servicePricing, bookingRevenue, travelRoute, recurringRevenue, cashFlow, staffUtilisation, customerResponse, upgradePlan,
-    pairBooking, pairTravel, pairCustomer
+    pairBooking, pairTravel, pairStaff, pairCustomer
   };
 });

@@ -161,7 +161,7 @@ test('travel: rejects a negative wage and out-of-range days', () => {
 });
 
 // ---- #37 recurring service revenue ------------------------------------------
-const recurring = { clients: 0, frequency: 'monthly', price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
+const recurring = { weeklyClients: 0, fortnightlyClients: 0, monthlyClients: 0, price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, newFrequency: 'monthly', collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
 
 test('recurring: zero clients give zero revenue, including the deferred figure', () => {
   const r = P.recurringRevenue(recurring);
@@ -171,12 +171,12 @@ test('recurring: zero clients give zero revenue, including the deferred figure',
 });
 
 test('recurring: weekly clients use 52 visits a year, spread over 12 months', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 10, frequency: 'weekly', price: 100 });
+  const r = P.recurringRevenue({ ...recurring, weeklyClients: 10, price: 100 });
   assert.equal(r.headline.v, 51999.96); // 10 x 52/12 x 100 x 12
 });
 
 test('recurring: 100% churn with new clients leaves only the new clients in month 2 onward', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 50, frequency: 'monthly', price: 10, churnPct: 100, newClients: 3 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 50, price: 10, churnPct: 100, newClients: 3 });
   const rows = r.tables[0].rows;
   assert.equal(rows[0][1].v, 50);
   assert.equal(rows[1][1].v, 3);
@@ -184,14 +184,14 @@ test('recurring: 100% churn with new clients leaves only the new clients in mont
 });
 
 test('recurring: a rate change applies only from the chosen month', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, rateChangePct: 10, rateChangeMonth: 7 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, rateChangePct: 10, rateChangeMonth: 7 });
   const rows = r.tables[0].rows;
   assert.equal(rows[5][2].v, 100);
   assert.equal(rows[6][2].v, 110);
 });
 
 test('recurring: unpaid share is deferred, not counted as cash received', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, collectedSamePct: 50 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, collectedSamePct: 50 });
   assert.equal(summary(r, 'Deferred receipts at end of month 12').v, 50);
   assert.equal(r.tables[0].rows[0][6].v, 50); // month 1 cash received is half
 });
@@ -294,6 +294,32 @@ test('staff: rejects hours above one week and more than 100% target', () => {
 test('staff: makes no competency claim from training hours', () => {
   const r = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40, trainingHours: 10 })] });
   assert.match(r.notes.join(' '), /does not infer skills or competence/);
+});
+
+test('staff: scenario minus current gives hour, contribution and utilisation differences', () => {
+  const current = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 4, travelHours: 6, contribPerHour: 60 })] });
+  const scenario = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 0, travelHours: 6, contribPerHour: 60 })] });
+  const diff = P.pairStaff(current, scenario);
+  assert.equal(diff[0].v, 8); // 2 people x 4 training hours returned to productive time
+  assert.equal(diff[1].v, 480); // 8 hours x A$60
+  assert.equal(diff[2].v, 10); // 75% to 85%
+});
+
+test('staff: pairing returns nothing when either scenario is refused', () => {
+  const ok = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  const bad = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ contractedHours: 500 })] });
+  assert.deepEqual(P.pairStaff(ok, bad), []);
+});
+
+test('staff: no available hours in one scenario is shown as not available, not zero', () => {
+  const none = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 0 })] });
+  const some = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  assert.equal(typeof P.pairStaff(none, some)[2].v, 'string');
+});
+
+test('staff: handoff lists productive hours per person, with zero-headcount teams left out', () => {
+  const r = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ role: 'Cleaner', headcount: 3, contractedHours: 38, leaveHours: 2, trainingHours: 3, travelHours: 5 }), row({ role: 'Empty' })] });
+  assert.deepEqual(r.handoff, [{ role: 'Cleaner', people: 3, productivePerPerson: 28 }]);
 });
 
 // ---- #40 customer response ---------------------------------------------------
