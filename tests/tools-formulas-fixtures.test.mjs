@@ -6,6 +6,8 @@
 // (as the service pricing tool) and the target price is rounded up to the cent.
 // The quote-record/save entry was re-recorded for #31: saved records now carry a history list of
 // earlier versions (empty for a first save).
+// The capacity/default and capacity/non-default entries were re-recorded for #27: skill coverage
+// (100% by default) and a billable-hours row were added. Only the rows changed; every number is the same.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
