@@ -373,6 +373,30 @@ test('lead: identical baseline and scenario show no change', () => {
   assert.equal(r.direction, 'no change');
 });
 
+test('lead simple mode: one current and one scenario rate, stage fields are ignored', () => {
+  const r = C.leadConversion({ mode: 'simple', leads: 200, value: 400, contribPct: 50, simpleBase: 20, simpleAlt: 25, base_contacted: 0 });
+  close(r.baseRate, 0.2);
+  close(r.scenRate, 0.25);
+  close(r.revenueDelta, 200 * 0.05 * 400);
+  close(r.contributionDelta, 2000);
+});
+
+test('lead simple mode: a lower scenario rate is a reduction, not clamped to zero', () => {
+  const r = C.leadConversion({ mode: 'simple', leads: 100, value: 300, contribPct: 100, simpleBase: 25, simpleAlt: 20 });
+  assert.ok(r.revenueDelta < 0);
+  assert.equal(r.direction, 'reduction');
+});
+
+test('lead simple mode: 0% and 100% are accepted, beyond them is refused', () => {
+  close(C.leadConversion({ mode: 'simple', leads: 10, value: 1, contribPct: 100, simpleBase: 100, simpleAlt: 0 }).revenueDelta, -10);
+  assert.throws(() => C.leadConversion({ mode: 'simple', leads: 10, value: 1, contribPct: 100, simpleBase: 101, simpleAlt: 0 }), /must be 0 to 100/);
+  assert.throws(() => C.leadConversion({ mode: 'simple', leads: 10, value: 1, contribPct: 100, simpleBase: 10, simpleAlt: -1 }), /must be 0 to 100/);
+});
+
+test('lead: an unknown mode is refused rather than guessed', () => {
+  assert.throws(() => C.leadConversion({ ...leadInput(), mode: 'advanced' }), /simple or funnel mode/);
+});
+
 // ---- #30 invoice collection
 function invoiceInput(overrides = {}) {
   return {
