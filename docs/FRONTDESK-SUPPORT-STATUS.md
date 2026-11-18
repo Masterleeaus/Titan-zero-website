@@ -7,13 +7,15 @@ Version data: `assets/upgrade-catalogue.json` (version 2026-11-18). That file is
 | Topic | Where it is covered now | Public route | Status |
 |---|---|---|---|
 | Free installation | Documentation page and support link | `/frontdesk-docs/#install` | Plugin is not on WordPress.org. Download comes from support. |
-| Plugin compatibility and upgrades | Documentation page, no version matrix yet | `/frontdesk-docs/#compatibility` | Open. Needs verified version and WordPress requirements. |
+| Plugin compatibility and upgrades | Own page, linked from the hub and footer | `/frontdesk-compatibility/` (overview: `/frontdesk-docs/#compatibility`) | Published. Checked against released version 3.0.128. Not on WordPress.org. |
 | Hosted AI Assistant opt-in | Documentation page | `/frontdesk-docs/#assistant` | In development. Not available to buy. |
 | Agent Team permissions | Documentation page | `/frontdesk-docs/#agent-team` | In development. Not available to buy. |
-| Privacy and consent | Documentation page | `/frontdesk-docs/#privacy` | Covered for the free plugin. Consent for hosted AI is described, not yet built. |
-| Billing cancellation | Documentation page | `/frontdesk-docs/#billing` | Open. No billing is live. |
-| Troubleshooting | Documentation page | `/frontdesk-docs/#troubleshooting` | Common checks only. |
-| Service status | Documentation page | `/frontdesk-docs/#status` | Open. No live status feed exists. |
+| Privacy and consent | Own page, linked from the hub and footer | `/frontdesk-privacy/` (overview: `/frontdesk-docs/#privacy`) | Published. Checked against version 3.0.128. Consent for hosted AI is described, not yet built. |
+| Billing cancellation | Own page, linked from the hub and footer | `/frontdesk-billing/` (overview: `/frontdesk-docs/#billing`) | Published. Says no billing is live. Terms are drafts pending legal review. |
+| Troubleshooting | Own page, linked from the hub and footer | `/frontdesk-troubleshooting/` (overview: `/frontdesk-docs/#troubleshooting`) | Published. Checked against version 3.0.128. |
+| Service status | Own page, linked from the hub and footer | `/frontdesk-status/` (overview: `/frontdesk-docs/#status`) | Published. States that no status page exists and that hosted services are not live. |
+
+Per-topic routes (issue #91): each page links to `/support/`, and each is linked from `/frontdesk/` and the footer. `/frontdesk-docs/` remains the overview.
 
 Rules for any page in this set:
 - Use the canonical support URL `/support/` for help.

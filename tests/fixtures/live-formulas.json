@@ -901,19 +901,20 @@
   "jobcost/default": {
     "ok": true,
     "result": {
-      "metric": 407.4225,
+      "metric": 407.42,
       "labour": 183.75,
       "directCost": 359.45,
-      "contingency": 17.9725,
+      "contingency": 17.97,
       "overhead": 30,
-      "totalCost": 407.4225,
-      "mileage": 35.699999999999996,
+      "totalCost": 407.42,
+      "mileage": 35.7,
+      "materialCost": 120,
       "materialMarkupValue": 12,
       "sellPriceMaterials": 132,
       "price": 480,
-      "margin": 72.57749999999999,
-      "marginPct": 15.120312499999997,
-      "targetPrice": 582.032142857143,
+      "margin": 72.58,
+      "marginPct": 15.120833333333334,
+      "targetPrice": 582.03,
       "rows": [
         [
           "Labour",
@@ -925,23 +926,27 @@
         ],
         [
           "Equipment, mileage and other travel",
-          55.699999999999996
+          55.7
         ],
         [
-          "Contingency",
-          17.9725
+          "Contingency (on direct cost only)",
+          17.97
         ],
         [
           "Allocated overhead",
           30
         ],
         [
-          "Total job cost",
-          407.4225
+          "Total job cost (ex GST)",
+          407.42
+        ],
+        [
+          "Markup on materials (income inside the price, not cost)",
+          12
         ],
         [
           "Margin at entered price (ex GST)",
-          72.57749999999999
+          72.58
         ]
       ]
     }
@@ -956,6 +961,7 @@
       "overhead": 0,
       "totalCost": 0,
       "mileage": 0,
+      "materialCost": 0,
       "materialMarkupValue": 0,
       "sellPriceMaterials": 0,
       "price": 0,
@@ -976,7 +982,7 @@
           0
         ],
         [
-          "Contingency",
+          "Contingency (on direct cost only)",
           0
         ],
         [
@@ -984,7 +990,11 @@
           0
         ],
         [
-          "Total job cost",
+          "Total job cost (ex GST)",
+          0
+        ],
+        [
+          "Markup on materials (income inside the price, not cost)",
           0
         ],
         [
@@ -1014,14 +1024,14 @@
           "reference": "Q1-A",
           "version": 1,
           "savedAt": "2026-11-18T00:00:00.000Z",
-          "validDays": 14,
-          "business": "Biz",
-          "customer": "",
           "consentToStoreCustomer": false,
+          "business": "Biz",
           "service": "S",
           "scope": "",
           "exclusions": "",
           "terms": "",
+          "customer": "",
+          "validDays": 14,
           "taxMode": "exclusive",
           "taxRate": 10,
           "discountPct": 0,
@@ -1041,21 +1051,22 @@
               "quantity": 3,
               "unitPrice": 12.35
             }
-          ]
+          ],
+          "history": []
         }
       ],
       "saved": {
         "reference": "Q1-A",
         "version": 1,
         "savedAt": "2026-11-18T00:00:00.000Z",
-        "validDays": 14,
-        "business": "Biz",
-        "customer": "",
         "consentToStoreCustomer": false,
+        "business": "Biz",
         "service": "S",
         "scope": "",
         "exclusions": "",
         "terms": "",
+        "customer": "",
+        "validDays": 14,
         "taxMode": "exclusive",
         "taxRate": 10,
         "discountPct": 0,
@@ -1075,7 +1086,8 @@
             "quantity": 3,
             "unitPrice": 12.35
           }
-        ]
+        ],
+        "history": []
       },
       "history": 0
     }

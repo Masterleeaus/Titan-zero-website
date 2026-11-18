@@ -186,9 +186,10 @@ for(const[key,value]of new FormData(form).entries()){const field=definition.fiel
 for(const[key,value]of Object.entries(values)){if(typeof value==='number'&&(!Number.isFinite(value)||value<0)){showCalculatorError(result,definition,'Enter zero or a positive number for '+key+'.');return;}}
 // Shared rules (#42): blanks, NaN, infinity, out-of-range values and over-precise money are refused
 // before any result. Only tools whose form fields match the engine rules are checked here.
+// Validate the raw form strings: Number('') is 0, so blanks must be refused before conversion (#105).
 const rules=engine.RULES[active];
 if(rules&&Object.keys(rules).every(key=>key in values)){
-const checked=engine.validate(active,values);
+const checked=engine.validate(active,Object.fromEntries(new FormData(form).entries()));
 if(!checked.ok){showCalculatorError(result,definition,checked.errors.map(item=>item.message).join(' '));return;}
 }
 let outcome;
@@ -201,9 +202,73 @@ showCalculatorResult(result,definition,outcome,values);
 tabs.forEach(tab=>tab.addEventListener('click',()=>{if(!defaults[tab.dataset.toolTab])return;active=tab.dataset.toolTab;draw();}));
 root.addEventListener('toolverticalchange',draw);
 draw();
+addAssumptionsTools(root);
+}
+// Portable assumptions file (#106). Numbers for the active service type only. Import is all-or-nothing:
+// the engine refuses the whole file on any problem, and the values are applied only after the user confirms.
+function addAssumptionsTools(root){
+const ids=verticalOptions.map(item=>item.id);
+const panel=document.createElement('section');panel.className='assumptions-tools';panel.setAttribute('aria-label','Assumptions file');
+const heading=textNode('h3','Save or load your assumptions');
+const note=textNode('p','The file holds numbers only for the service type shown above. It has no business name, customer, staff or quote text.','fine-print');
+const exportButton=document.createElement('button');exportButton.type='button';exportButton.className='button button-secondary';exportButton.textContent='Download assumptions file';
+const label=document.createElement('label');label.htmlFor='assumptions-file';label.textContent='Load an assumptions file';
+const input=document.createElement('input');input.type='file';input.id='assumptions-file';input.accept='.json,application/json';
+const status=textNode('p','','fine-print');status.setAttribute('role','status');
+const preview=document.createElement('div');
+exportButton.addEventListener('click',()=>{
+try{
+const doc=engine.exportAssumptions(profile,profile.activeVertical,ids);
+const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='titan-tool-assumptions-'+profile.activeVertical+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+status.textContent='Downloaded '+Object.keys(doc.assumptions).length+' saved values for '+currentIndustry().name+'.';
+}catch(error){status.textContent=error.message;}
+});
+input.addEventListener('change',()=>{
+preview.replaceChildren();
+const file=input.files&&input.files[0];
+if(!file)return;
+if(file.size>engine.PORTABLE_MAX_CHARS){status.textContent='The file is too large to import. Nothing was imported.';input.value='';return;}
+const reader=new FileReader();
+reader.addEventListener('load',()=>{
+const checked=engine.validateImport(String(reader.result||''),ids);
+input.value='';
+if(!checked.ok){status.textContent='Not imported. '+checked.errors.map(item=>item.message).join(' ');return;}
+if(checked.value.vertical!==profile.activeVertical){status.textContent='This file is for '+(industryById[checked.value.vertical]?.name||'another service type')+'. Switch to that service type first. Nothing was imported.';return;}
+const pairs=Object.entries(checked.value.assumptions).map(([key,value])=>key+': '+value);
+const list=textNode('p','Values ready to import ('+pairs.length+'): '+pairs.join('; '),'fine-print');
+const apply=document.createElement('button');apply.type='button';apply.className='button button-primary';apply.textContent='Import these values';
+apply.addEventListener('click',()=>{
+const next=engine.applyImport(profile,checked);
+profile.assumptions=next.profile.assumptions;saveProfile();
+preview.replaceChildren();status.textContent='Imported '+next.applied.length+' values. Submit the calculator to see new results.';
+root.dispatchEvent(new CustomEvent('toolverticalchange'));
+});
+preview.append(list,apply);
+});
+reader.addEventListener('error',()=>{status.textContent='The file could not be read. Nothing was imported.';});
+reader.readAsText(file);
+});
+panel.append(heading,note,exportButton,label,input,status,preview);
+root.append(panel);
 }
 document.querySelectorAll('[data-tools-app]').forEach(initializeCalculator);
+function dateText(iso){return new Date(iso+'T00:00:00Z').toLocaleDateString('en-AU',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'});}
 const QUOTE_TAX_TEXT={none:'No GST applied on this quote.',exclusive:'Prices exclude GST. GST is added on top.',inclusive:'Prices include GST. GST is shown inside the total.'};
+// Offers the figures saved by Service pricing, but only when the user clicks. The saved figures are
+// read through the calc parser, so a damaged or hand-edited value is ignored and nothing is shown.
+function offerPricingHandoff(box,calc,apply){
+if(!box||!calc||typeof calc.parsePricingHandoff!=='function')return;
+let figures=null;
+try{figures=calc.parsePricingHandoff(localStorage.getItem(calc.PRICING_HANDOFF_KEY));}catch(_){figures=null;}
+if(!figures)return;
+const label=figures.role?'for '+figures.role:'from your last calculation';
+const note=textNode('p',`Service pricing figures ${label} are saved on this device. They exclude GST. Nothing is uploaded.`,'fine-print');
+note.setAttribute('role','status');
+const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Use the Service pricing figures';
+button.addEventListener('click',()=>apply(figures));
+box.replaceChildren(note,button);box.hidden=false;
+}
 function initializeQuoteBuilder(root){
 const calc=engine.formulas;
 const form=root.querySelector('[data-quote-form]'),lines=root.querySelector('[data-quote-lines]'),output=root.querySelector('[data-quote-result]');
@@ -211,7 +276,13 @@ if(!form||!lines||!output||!calc)return;
 const status=root.querySelector('[data-quote-status]'),savedSelect=root.querySelector('[data-quote-saved]');
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
-let version=0;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+f('service').value=figures.role||f('service').value;
+f('taxMode').value='exclusive';
+lines.replaceChildren();addLine('Service from pricing tool',1,figures.targetPrice);
+render();say('Figures from Service pricing added. Prices exclude GST; check the scope and quantities before you save.');
+});
+let version=0;let savedAt=null;
 const say=(text)=>{if(status)status.textContent=text;};
 function readStore(){try{const s=JSON.parse(localStorage.getItem(calc.QUOTE_STORE_KEY)||'{}');return{quotes:Array.isArray(s.quotes)?s.quotes:[]};}catch(_){return{quotes:[]};}}
 function writeStore(store){try{localStorage.setItem(calc.QUOTE_STORE_KEY,JSON.stringify(store));return true;}catch(_){return false;}}
@@ -229,8 +300,16 @@ row.append(desc,qtyLabel,priceLabel,remove);lines.append(row);
 function refreshSaved(selectRef){
 if(!savedSelect)return;
 const store=readStore();savedSelect.replaceChildren();
-if(!store.quotes.length){const o=document.createElement('option');o.value='';o.textContent='None saved on this device';savedSelect.append(o);return;}
+if(!store.quotes.length){const o=document.createElement('option');o.value='';o.textContent='None saved on this device';savedSelect.append(o);refreshVersions();return;}
 for(const item of store.quotes){const o=document.createElement('option');o.value=item.reference;o.textContent=`${item.reference} (version ${item.version})`;o.selected=item.reference===selectRef;savedSelect.append(o);}
+refreshVersions();
+}
+// Lists the stored earlier versions of the selected saved quote, for reopening.
+function refreshVersions(){
+const pick=root.querySelector('[data-quote-version]');if(!pick)return;
+const ref=savedSelect?savedSelect.value:'';const rec=readStore().quotes.find(item=>item.reference===ref);
+pick.replaceChildren();const latest=document.createElement('option');latest.value='';latest.textContent='Latest version';pick.append(latest);
+for(const h of(rec&&Array.isArray(rec.history)?rec.history:[])){const o=document.createElement('option');o.value=String(h.version);o.textContent=`Version ${h.version} (saved ${new Date(h.savedAt).toLocaleDateString('en-AU')})`;pick.append(o);}
 }
 function render(){
 const q=collect();
@@ -244,7 +323,9 @@ if(q.customer)output.append(textNode('p','Prepared for: '+q.customer));
 const ref=q.reference||'Not yet saved';
 output.append(textNode('p',`Reference: ${ref}${version?' (version '+version+')':''}`));
 const days=Number(q.validDays)||0;
-output.append(textNode('p',days>0?`Valid for ${days} days from ${new Date().toLocaleDateString('en-AU')}.`:'No validity period entered.'));
+const issuedOn=savedAt||new Date().toISOString();
+let until=null;try{until=calc.quoteValidUntil(issuedOn,days);}catch(error){output.append(textNode('p',error.message,'form-error'));}
+output.append(textNode('p',until?`Valid for ${days} days from ${dateText(issuedOn.slice(0,10))}, until ${dateText(until)}.`:'No validity period entered.'));
 const table=document.createElement('table');table.className='quote-preview-table';const body=document.createElement('tbody');
 t.lines.filter(line=>line.description||line.unitCents>0).forEach(line=>{const tr=document.createElement('tr');tr.append(textNode('td',line.description||'Service item'),textNode('td',`${number(line.quantity,2)} × ${money2(line.unitCents)}`),textNode('td',money2(line.lineCents)));body.append(tr);});
 table.append(body);output.append(table);
@@ -264,7 +345,7 @@ function resetForm(){
 for(const name of['business','customer','service','reference','scope','exclusions','terms'])f(name).value='';
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
 f('validDays').value='14';f('taxMode').value='exclusive';f('taxRate').value='10';f('discount').value='0';f('consent').checked=false;
-lines.replaceChildren();addLine('Service',1,0);addLine();version=0;
+lines.replaceChildren();addLine('Service',1,0);addLine();version=0;savedAt=null;
 }
 function currentRecord(){const q=collect();return q;}
 function saveDraft(){
@@ -273,7 +354,7 @@ try{
 const store=readStore();
 const r=calc.saveQuoteRecord(store,{...q,consentToStoreCustomer:q.consentToStoreCustomer},new Date().toISOString());
 if(!writeStore({quotes:r.quotes})){say('This browser would not keep the quote. Use Download quote file to keep a copy.');return;}
-version=r.saved.version;f('reference').value=r.saved.reference;
+version=r.saved.version;savedAt=r.saved.savedAt;f('reference').value=r.saved.reference;
 say(`Saved ${r.saved.reference} as version ${r.saved.version} on this device.`+(q.customer&&!q.consentToStoreCustomer?' The customer name was not saved because consent was not ticked.':''));
 refreshSaved(r.saved.reference);render();
 }catch(error){say(error.message);}
@@ -282,11 +363,16 @@ function openSaved(){
 const ref=savedSelect?savedSelect.value:'';
 const rec=readStore().quotes.find(item=>item.reference===ref);
 if(!rec){say('Choose a saved quote to open.');return;}
-f('business').value=rec.business||'';f('customer').value=rec.customer||'';f('service').value=rec.service||'';f('reference').value=rec.reference;
-f('validDays').value=String(rec.validDays??14);f('scope').value=rec.scope||'';f('exclusions').value=rec.exclusions||'';f('terms').value=rec.terms||'';
-f('taxMode').value=rec.taxMode||'none';f('taxRate').value=String(rec.taxRate??10);f('discount').value=String(rec.discountPct??0);f('consent').checked=Boolean(rec.consentToStoreCustomer);
-lines.replaceChildren();(rec.lines&&rec.lines.length?rec.lines:[{description:'',quantity:1,unitPrice:0}]).forEach(line=>addLine(line.description,line.quantity,line.unitPrice));
-version=rec.version;say(`Opened ${rec.reference} version ${rec.version}. Save again to create a new version.`);render();
+const pick=root.querySelector('[data-quote-version]');
+const chosen=pick&&pick.value!==''?Number(pick.value):undefined;
+let r;try{r=calc.restoreQuote(rec,chosen);}catch(error){say(error.message);return;}
+f('business').value=r.business;f('customer').value=r.customer;f('service').value=r.service;f('reference').value=r.reference;
+f('validDays').value=String(r.validDays);f('scope').value=r.scope;f('exclusions').value=r.exclusions;f('terms').value=r.terms;
+f('taxMode').value=r.taxMode;f('taxRate').value=String(r.taxRate);f('discount').value=String(r.discountPct);f('consent').checked=r.consentToStoreCustomer;
+lines.replaceChildren();(r.lines.length?r.lines:[{description:'',quantity:1,unitPrice:0}]).forEach(line=>addLine(line.description,line.quantity,line.unitPrice));
+version=rec.version;savedAt=r.version===rec.version?rec.savedAt:((rec.history||[]).find(h=>h.version===r.version)||{}).savedAt||null;
+const older=r.version===rec.version?'':' This is an earlier version; saving creates a new latest version.';
+say(`Opened ${rec.reference} version ${r.version}.${older} Save again to create a new version.`);render();
 }
 function deleteSaved(){
 const ref=savedSelect?savedSelect.value:'';
@@ -296,9 +382,9 @@ const store={quotes:readStore().quotes.filter(item=>item.reference!==ref)};
 writeStore(store);refreshSaved('');say('Deleted '+ref+' from this device.');
 }
 function downloadQuote(){
-const q=currentRecord();let t;
-try{t=totalsFor(q);}catch(error){say(error.message);return;}
-const doc={format:'titan-zero-quote',formatVersion:1,exportedAt:new Date().toISOString(),version:version||null,quote:{...q,consentToStoreCustomer:undefined,totals:{subtotal:t.subtotalCents/100,discount:t.discountCents/100,beforeGst:t.exTaxCents/100,gst:t.gstCents/100,total:t.totalCents/100}}};
+const q=currentRecord();let t,validUntil;
+try{t=totalsFor(q);validUntil=calc.quoteValidUntil(savedAt||new Date().toISOString(),q.validDays);}catch(error){say(error.message);return;}
+const doc={format:'titan-zero-quote',formatVersion:1,exportedAt:new Date().toISOString(),version:version||null,issuedAt:savedAt,validUntil,quote:{...q,consentToStoreCustomer:undefined,totals:{subtotal:t.subtotalCents/100,discount:t.discountCents/100,beforeGst:t.exTaxCents/100,gst:t.gstCents/100,total:t.totalCents/100}}};
 delete doc.quote.consentToStoreCustomer;
 const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
 const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='quote-'+(calc.quoteRecordId(q.reference)||'draft')+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -309,11 +395,17 @@ const newButton=root.querySelector('[data-quote-new]');if(newButton)newButton.ad
 const saveButton=root.querySelector('[data-quote-save]');if(saveButton)saveButton.addEventListener('click',saveDraft);
 const downloadButton=root.querySelector('[data-quote-download]');if(downloadButton)downloadButton.addEventListener('click',downloadQuote);
 const openButton=root.querySelector('[data-quote-open]');if(openButton)openButton.addEventListener('click',openSaved);
+if(savedSelect)savedSelect.addEventListener('change',refreshVersions);
 const deleteButton=root.querySelector('[data-quote-delete]');if(deleteButton)deleteButton.addEventListener('click',deleteSaved);
 const printButton=root.querySelector('[data-quote-print]');if(printButton)printButton.addEventListener('click',()=>window.print());
 form.addEventListener('input',render);form.addEventListener('change',render);
 form.addEventListener('submit',event=>{event.preventDefault();render();});
-addLine('Service',1,0);addLine();render();refreshSaved('');
+const incoming=takeQuoteTransfer();
+if(incoming){lines.replaceChildren();addLine(incoming.description||'Service',1,incoming.unitPrice);addLine();say('A price from the job-cost sheet was added as a line. Check it before saving.');}
+else{addLine('Service',1,0);addLine();}
+render();refreshSaved('');
+// Reads and clears the one-off line sent from the job-cost sheet. Stored on this device only.
+function takeQuoteTransfer(){try{const raw=localStorage.getItem(calc.QUOTE_TRANSFER_KEY);if(raw===null)return null;localStorage.removeItem(calc.QUOTE_TRANSFER_KEY);return calc.readQuoteTransfer(raw);}catch(_){return null;}}
 }
 function initializeJobCost(root){
 const calc=engine.formulas;
@@ -321,6 +413,12 @@ const form=root.querySelector('[data-job-cost-form]'),output=root.querySelector(
 if(!form||!output||!roles||!calc)return;
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+roles.replaceChildren();addRole(figures.role||'Labour',figures.labourHours,figures.labourRate);
+f('materials').value=figures.materials;f('materialMarkupPct').value=0;f('equipment').value=figures.equipment;
+f('km').value=0;f('kmRate').value=0;f('travel').value=figures.travel;f('overhead').value=figures.overhead;
+f('contingencyPct').value=figures.contingencyPct;f('target').value=figures.targetMarginPct;f('price').value=figures.targetPrice;
+});
 function addRole(name='',hours=1,rate=0){
 const row=document.createElement('div');row.className='quote-line-row';
 const wrap=(label,input)=>{const l=document.createElement('label');l.textContent=label;l.append(input);return l;};
@@ -348,6 +446,11 @@ const rows=[...c.rows,['Target price (ex GST)',c.targetPrice===null?'Enter a tar
 for(const[label,value]of rows){list.append(textNode('dt',label),textNode('dd',typeof value==='number'?money(value):String(value)));}
 output.append(list);
 output.append(textNode('p','Costs are kept separate from the price. GST is not included in any cost or in the price shown here. The target price is an arithmetic scenario, not a recommendation.','fine-print'));
+const send=document.createElement('button');send.type='button';send.className='button button-secondary';send.textContent='Send price to the quote builder';
+const sendStatus=textNode('p','Sends the customer price ex GST as one quote line. It stays on this device and is not put in a link.','fine-print');sendStatus.setAttribute('role','status');
+send.addEventListener('click',()=>{try{// Fixed line text: the service name is job text and is never sent (#106).
+const rec=calc.quoteTransferRecord(c,'Service from job-cost sheet',new Date().toISOString());localStorage.setItem(calc.QUOTE_TRANSFER_KEY,JSON.stringify(rec));sendStatus.textContent='Price sent. Open the quote builder on this device to review the line.';}catch(error){sendStatus.textContent=error.message;}});
+output.append(send,sendStatus);
 const context={tool:'Job-cost sheet',vertical:currentIndustry().name,business:businessName,service:f('service').value.trim(),result:'Total cost '+money(c.totalCost)+'; price (ex GST) '+money(c.price)+'; margin '+(c.marginPct===null?'n/a':c.marginPct.toFixed(1)+'%')+'.',calculation:`Labour ${money(c.labour)}; direct costs ${money(c.directCost)}; contingency ${money(c.contingency)}; overhead ${money(c.overhead)}.`};
 addHandoffButtons(output,context);
 });
@@ -363,11 +466,11 @@ const title=root.querySelector('[data-checklist-title]'),job=root.querySelector(
 const progressEl=root.querySelector('[data-checklist-progress]'),signOff=root.querySelector('[data-checklist-signoff]');
 const initial=industryById[query.get('industry')]?query.get('industry'):'cleaning';
 for(const industry of verticalOptions){const option=document.createElement('option');option.value=industry.id;option.textContent=industry.name;option.selected=industry.id===initial;select.append(option);}
-function readDraft(){try{const d=JSON.parse(localStorage.getItem(CHECKLIST_DRAFT_KEY)||'null');return d&&d.state&&Array.isArray(d.state.tasks)?d.state:null;}catch(_){return null;}}
 function persist(){try{localStorage.setItem(CHECKLIST_DRAFT_KEY,JSON.stringify({savedAt:new Date().toISOString(),state}));}catch(_){}}
 let state;
-const draft=readDraft();
-if(draft&&draft.industry===initial){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
+let draft=null;
+try{draft=calc.parseChecklistDraft(localStorage.getItem(CHECKLIST_DRAFT_KEY),initial,taskLists);}catch(_){draft=null;}
+if(draft){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
 else{state={...calc.emptyChecklist(initial),tasks:calc.templateTasks(initial,taskLists,TEMPLATE_REVISION)};}
 let nextId=1;
 function refreshProgress(){const p=calc.checklistProgress(state);if(progressEl)progressEl.textContent=`${p.done} of ${p.total} tasks done${p.complete?'. All tasks complete.':'.'}`;}
@@ -417,6 +520,14 @@ if(anyDone&&!window.confirm('Reset all ticks, notes and custom tasks for this ch
 state={...calc.emptyChecklist(state.industry),job:state.job,tasks:calc.templateTasks(state.industry,taskLists,TEMPLATE_REVISION)};persist();render();
 });
 root.querySelector('[data-print-checklist]').addEventListener('click',()=>window.print());
+const exportButton=root.querySelector('[data-export-checklist]');
+if(exportButton)exportButton.addEventListener('click',()=>{
+const text=calc.checklistText(state,(industryById[state.industry]||{}).name||state.industry);
+const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+const link=document.createElement('a');link.href=url;link.download=state.industry+'-checklist.txt';document.body.append(link);link.click();link.remove();
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+if(progressEl)progressEl.textContent='Checklist text downloaded. It was made in this browser and was not uploaded.';
+});
 render();
 }
 document.querySelectorAll('[data-quote-builder]').forEach(initializeQuoteBuilder);

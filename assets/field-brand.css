@@ -5,6 +5,7 @@
   --sw-white:#FFFFFF;
   --sw-charcoal:#101923;
   --accent:var(--sw-orange);
+  --accent-ink:var(--sw-orange);
 }
 .page-field .field-bg-contour{
   background-image:linear-gradient(rgba(11,35,69,.86),rgba(11,35,69,.94)),url("/assets/field-bg-contour.webp");

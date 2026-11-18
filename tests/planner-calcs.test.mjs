@@ -1,6 +1,7 @@
 // Regression tests for the planners in issues #34-#41 (assets/planner-calcs.js).
 // Pure functions only: no DOM, no network, no storage.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 
@@ -60,6 +61,38 @@ test('service pricing: GST adds 10% to the including-GST column, rounded to cent
   const row = r.tables[0].rows[0];
   assert.equal(row[1].v, 0.05);
   assert.equal(row[2].v, 0.06); // GST on 5 cents is 0.5 cent, rounded to 1 cent, so 6 cents
+});
+
+test('service pricing (#34): extreme but valid inputs stay finite and in order', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 10000, labourRate: 1000000, materials: 1000000, travel: 1000000, equipment: 1000000, overhead: 1000000, contingencyPct: 100, targetMarginPct: 99.99, discountPct: 99.99 });
+  assert.equal(r.ok, true);
+  const cost = summary(r, 'True unit cost, excluding GST').v;
+  const target = summary(r, 'Recommended price at target margin').v;
+  assert.ok(Number.isFinite(cost) && Number.isFinite(target), 'no Infinity or NaN');
+  assert.ok(target >= cost, 'target price is never below cost');
+  const list = cell(r, 'List price before discount')[1].v;
+  const after = cell(r, 'Price after discount')[1].v;
+  assert.ok(after <= list && after > 0, 'discounted price stays below list and above zero');
+});
+
+test('service pricing (#34): contingency applies to direct cost only, and overhead is added once', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, materials: 50, contingencyPct: 100, overhead: 25 });
+  // direct = 150, contingency = 150, overhead = 25, unit cost = 325
+  assert.equal(summary(r, 'True unit cost, excluding GST').v, 325);
+});
+
+test('service pricing (#34): a discount of 99.99% still gives a list price that is rounded to the cent', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, targetMarginPct: 20, discountPct: 99.99 });
+  const list = cell(r, 'List price before discount')[1].v;
+  assert.equal(Math.round(list * 100), list * 100, 'list price is whole cents');
+  assert.ok(list > 0);
+});
+
+test('service pricing (#34): GST inclusive column is the ex-GST figure plus 10%, to the cent, with no drift on odd cents', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 0.01, gst: 'yes' });
+  const floor = cell(r, 'Floor price (covers cost, no margin)');
+  assert.equal(floor[1].v, 0.01);
+  assert.equal(floor[2].v, 0.01, '10% of one cent rounds to zero cents');
 });
 
 test('service pricing: rejects money with more than two decimals and negative values', () => {
@@ -377,8 +410,60 @@ test('customer response: pairing reports differences for bookings and staff hour
   assert.equal(pairs[1].v, -10);
 });
 
+test('customer response: opt-out, quiet-hours and Spam Act narrative is shown with every result', () => {
+  const r = P.customerResponse({ ...cust, enquiries: 10 });
+  const notes = r.notes.join(' ');
+  assert.match(notes, /opt-out/);
+  assert.match(notes, /quiet hours/);
+  assert.match(notes, /Spam Act 2003/);
+  assert.match(notes, /No AI benefit is assumed or guaranteed/);
+});
+
+test('customer response: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000000 }).ok, true);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000001 }).ok, false);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 10, followUps: 6 }).ok, false);
+});
+
+test('customer response: money is rounded to the cent once, with no float drift', () => {
+  // 3 completed bookings at A$19.99 less A$0.10 variable cost each = A$59.67; no consent, so no messages
+  const r = P.customerResponse({ ...cust, enquiries: 3, reachPhone: 100, consentPct: 0, qualifiedPct: 100, bookPct: 100, avgJobValue: 19.99, jobVariableCost: 0.1, costPerMessage: 0.1 });
+  assert.equal(r.summary[0].v, 59.67);
+});
+
 // ---- #41 upgrade configurator -----------------------------------------------
 const none = { assistant: false, agent: false, supercharged: false, scheduled: false, sorted: false, skilled: false, assistantBand: 'standard', agentBand: 'standard', hoursSavedPerWeek: 0, valuePerHour: 0 };
+
+const catalogue = JSON.parse(readFileSync(new URL('../assets/upgrade-catalogue.json', import.meta.url), 'utf8'));
+
+test('upgrades: AI bands match the approved catalogue, so the planner cannot drift from it', () => {
+  const names = Object.keys(catalogue.bands).map((k) => k.toLowerCase()).sort();
+  assert.deepEqual(Object.keys(P.AI_BANDS).sort(), names);
+  for (const [name, band] of Object.entries(catalogue.bands)) {
+    assert.equal(P.AI_BANDS[name.toLowerCase()].assistant, band.assistant, `${name} Assistant`);
+    assert.equal(P.AI_BANDS[name.toLowerCase()].agent, band.agentTeam, `${name} Agent Team`);
+  }
+});
+
+test('upgrades: every app upgrade in the catalogue has no price, so the planner shows request quote', () => {
+  const apps = catalogue.upgrades.filter((u) => u.type === 'connected-app');
+  assert.equal(apps.length, 4);
+  for (const app of apps) assert.equal(app.priceMonthly, null, app.id);
+  const r = P.upgradePlan({ ...none, supercharged: true, scheduled: true, sorted: true, skilled: true });
+  assert.equal(r.summary[2].v, 4);
+});
+
+test('upgrades: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 168, valuePerHour: 10000 }).ok, true);
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 169 }).ok, false);
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 10000.01 }).ok, false);
+});
+
+test('upgrades: scenario value is rounded to the cent once, and zero hours give zero', () => {
+  const r = P.upgradePlan({ ...none, hoursSavedPerWeek: 1, valuePerHour: 33.33 });
+  assert.equal(r.summary[3].v, 144.43); // 1 x 52/12 x 33.33 = 144.4333, rounded to the cent
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 50 }).summary[3].v, 0);
+});
 
 test('upgrades: nothing selected is a free foundation with no fees', () => {
   const r = P.upgradePlan(none);

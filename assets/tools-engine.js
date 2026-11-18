@@ -57,6 +57,19 @@
     count: (label, min = 0) => ({ kind: 'number', label, min, max: MAX_COUNT }),
   };
 
+  // Funnel stages and ageing buckets used by the live forms (#105). Defined before RULES, which reads them.
+  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
+  const FUNNEL_LABELS = {
+    contacted: 'leads contacted', qualified: 'contacted leads qualified',
+    booked: 'qualified leads booked', completed: 'booked jobs completed',
+  };
+  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
+  const AGEING_LABELS = {
+    d0_30: 'Unpaid from this month (0-30 days)', d31_60: 'Unpaid 31-60 days',
+    d61_90: 'Unpaid 61-90 days', d90: 'Unpaid over 90 days',
+  };
+  const COLLECT_LABELS = { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90: '90+ days' };
+
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
@@ -90,16 +103,20 @@
       convert: rule.percent('Likely conversion if answered'),
       jobValue: rule.money('Average job value'),
     },
+    // Lead conversion and invoice collection use the live four-stage funnel and ageing buckets (#105).
+    // Labels match the visible form fields so refusal messages name what the user sees.
     leads: {
       leads: rule.count('Leads per month'),
-      current: rule.percent('Current conversion'),
-      target: rule.percent('Scenario conversion'),
       value: rule.money('Average customer/job value'),
+      contribPct: rule.percent('Contribution margin on that work'),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['base_' + stage, rule.percent('Current: ' + FUNNEL_LABELS[stage])])),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['alt_' + stage, rule.percent('Scenario: ' + FUNNEL_LABELS[stage])])),
     },
     invoice: {
       invoices: rule.count('Invoices per month'),
       avg: rule.money('Average invoice'),
-      overdue: rule.percent('Beyond-terms share'),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['age_' + bucket, rule.percent(AGEING_LABELS[bucket])])),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['collect_' + bucket, rule.percent('Expected collection within 13 weeks: ' + COLLECT_LABELS[bucket])])),
       chase: rule.number('Hours/month chasing payment', 0, 744),
     },
     jobcost: {
@@ -266,12 +283,18 @@
     };
   }
 
+  // Live four-stage funnel (#105): the lead-to-completed rate is the product of the stage shares.
+  function funnelShare(v, prefix) {
+    return FUNNEL_STAGES.reduce((rate, stage) => rate * v[prefix + '_' + stage] / 100, 1);
+  }
   function leads(v) {
-    const cents = safeCents(Math.round(v.leads * (v.target - v.current) / 100 * toCents(v.value)));
+    const baseRate = funnelShare(v, 'base');
+    const scenRate = funnelShare(v, 'alt');
+    const cents = safeCents(Math.round(v.leads * (scenRate - baseRate) * toCents(v.value)));
     return {
       status: 'ok', metric: fromCents(cents), format: 'currency',
       label: 'Scenario revenue difference/month',
-      math: v.leads + ' leads × (' + v.target + '% − ' + v.current + '%) × ' + formatMoney(v.value),
+      math: v.leads + ' leads × (' + (scenRate * 100).toFixed(1) + '% − ' + (baseRate * 100).toFixed(1) + '%) × ' + formatMoney(v.value),
       notes: [
         'This shows what the selected conversion change would be worth.',
         'It does not claim that software, marketing or AI will cause that improvement.',
@@ -279,13 +302,15 @@
     };
   }
 
+  // Beyond terms means unpaid 31 days or more (#105): the 31-60, 61-90 and 90+ buckets.
   function invoice(v) {
     const billedCents = safeCents(v.invoices * toCents(v.avg));
-    const overdueCents = safeCents(Math.round(billedCents * v.overdue / 100));
+    const beyondShare = AGEING_BUCKETS.filter((b) => b !== 'd0_30').reduce((sum, b) => sum + v['age_' + b], 0);
+    const overdueCents = safeCents(Math.round(billedCents * beyondShare / 100));
     return {
       status: 'ok', metric: fromCents(overdueCents), format: 'currency',
       label: 'Value typically beyond terms',
-      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + v.overdue + '%',
+      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + beyondShare + '%',
       notes: [
         'Monthly invoicing represented: ' + formatMoney(fromCents(billedCents)) + '.',
         v.chase + ' hours/month are also spent on collection activity.',
@@ -321,8 +346,6 @@
   // ---- Local profile schema (#43/#44) -------------------------------------------
   // Every assumption a live tool persists must survive migration. These are the extra
   // fields on the public tool forms (shares, rates, ageing buckets, funnel stages).
-  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
-  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
     'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',
@@ -820,93 +843,154 @@
   function quoteRecordId(reference) {
     return String(reference || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
   }
+  // Each saved version keeps its content. Up to QUOTE_HISTORY_LIMIT earlier versions
+  // are kept with the current one. The customer name is kept in any stored copy only
+  // while consent is recorded, so withdrawing consent clears it from every version.
+  const QUOTE_HISTORY_LIMIT = 5;
+  const QUOTE_VALID_MAX_DAYS = 365;
+  const QUOTE_TEXT_FIELDS = { business: 120, service: 160, scope: 1000, exclusions: 1000, terms: 1000 };
+
+  // Validates and copies the content fields of a quote. Throws on bad numbers, lines,
+  // tax mode or GST rate, so a stored quote can always be totalled again.
+  function quoteContent(quote, keepCustomer) {
+    quoteTotals(quote);
+    const content = {};
+    for (const [key, max] of Object.entries(QUOTE_TEXT_FIELDS)) content[key] = String(quote[key] ?? '').slice(0, max);
+    content.customer = keepCustomer ? String(quote.customer ?? '').slice(0, 120) : '';
+    content.validDays = num(quote.validDays ?? 14, 'Validity in days', 0, QUOTE_VALID_MAX_DAYS);
+    content.taxMode = quote.taxMode ?? 'none';
+    content.taxRate = pct(quote.taxRate ?? 10, 'GST rate');
+    content.discountPct = pct(quote.discountPct ?? 0, 'Discount');
+    content.lines = (quote.lines || []).map(line => ({
+      description: String(line.description ?? '').trim().slice(0, 160),
+      quantity: nonNeg(line.quantity ?? 0, 'Quantity'),
+      unitPrice: nonNeg(line.unitPrice ?? 0, 'Unit price')
+    }));
+    return content;
+  }
   function saveQuoteRecord(store, quote, now) {
     const ref = quoteRecordId(quote.reference);
     if (!ref) fail('Enter a quote reference before saving.');
+    const consent = Boolean(quote.consentToStoreCustomer);
     const list = Array.isArray(store.quotes) ? store.quotes.slice() : [];
     const existing = list.find(item => item.reference === ref);
     const version = existing ? existing.version + 1 : 1;
+    const content = quoteContent(quote, consent);
+    const prior = existing
+      ? [
+          { version: existing.version, savedAt: existing.savedAt, ...quoteContent(existing, consent) },
+          ...(Array.isArray(existing.history) ? existing.history.map(h => ({ ...h, customer: consent ? h.customer || '' : '' })) : [])
+        ].slice(0, QUOTE_HISTORY_LIMIT)
+      : [];
     const record = {
       reference: ref,
       version,
       savedAt: now,
-      validDays: nonNeg(quote.validDays ?? 14, 'Validity in days'),
-      business: String(quote.business ?? '').slice(0, 120),
-      customer: quote.consentToStoreCustomer ? String(quote.customer ?? '').slice(0, 120) : '',
-      consentToStoreCustomer: Boolean(quote.consentToStoreCustomer),
-      service: String(quote.service ?? '').slice(0, 160),
-      scope: String(quote.scope ?? '').slice(0, 1000),
-      exclusions: String(quote.exclusions ?? '').slice(0, 1000),
-      terms: String(quote.terms ?? '').slice(0, 1000),
-      taxMode: quote.taxMode ?? 'none',
-      taxRate: quote.taxRate ?? 10,
-      discountPct: quote.discountPct ?? 0,
-      lines: (quote.lines || []).map(line => ({
-        description: String(line.description ?? '').slice(0, 160),
-        quantity: Number(line.quantity) || 0,
-        unitPrice: Number(line.unitPrice) || 0
-      }))
+      consentToStoreCustomer: consent,
+      ...content,
+      history: prior
     };
     const others = list.filter(item => item.reference !== ref);
     const next = [record, ...others].slice(0, QUOTE_LIMIT);
     return { quotes: next, saved: record, history: existing ? existing.version : 0 };
   }
 
+  // Returns the form values for the current or an earlier stored version.
+  function restoreQuote(record, version) {
+    const src = version === undefined || version === record.version
+      ? record
+      : (Array.isArray(record.history) ? record.history : []).find(h => h.version === version);
+    if (!src) fail('That version is not stored on this device.');
+    return {
+      reference: record.reference,
+      version: src.version,
+      business: src.business || '',
+      customer: src.customer || '',
+      consentToStoreCustomer: Boolean(record.consentToStoreCustomer),
+      service: src.service || '',
+      scope: src.scope || '',
+      exclusions: src.exclusions || '',
+      terms: src.terms || '',
+      validDays: src.validDays ?? 14,
+      taxMode: src.taxMode || 'none',
+      taxRate: src.taxRate ?? 10,
+      discountPct: src.discountPct ?? 0,
+      lines: (src.lines || []).map(line => ({ ...line }))
+    };
+  }
+
+  // Validity runs from the saved date of the version, in UTC calendar days.
+  // Returns null when no validity period is set.
+  function quoteValidUntil(savedAt, validDays) {
+    const days = num(validDays ?? 0, 'Validity in days', 0, QUOTE_VALID_MAX_DAYS);
+    if (days === 0) return null;
+    const start = Date.parse(savedAt);
+    if (!Number.isFinite(start)) fail('The saved date is not valid.');
+    return new Date(start + days * 86400000).toISOString().slice(0, 10);
+  }
+
   // ---------------------------------------------------------------- #32 job cost sheet
   // Costs are kept apart from price and GST. Mileage and equipment are entered
   // as totals, not as hidden rates. Contingency applies to direct cost only.
+  // All money is worked in whole cents, rounded per line, the same way the service
+  // pricing tool (assets/planner-calcs.js) works, so the two tools agree to the cent
+  // for the same inputs. Results are returned in dollars. Markup on materials is
+  // income inside the price, so it is shown but never added to cost.
+  const toCents = (amount) => roundCents(Number((Number(amount) * 100).toFixed(6)));
+  const ceilCents = (c) => Math.ceil(Number(c.toFixed(6)));
   function jobCostSheet(v) {
     const roles = Array.isArray(v.roles) ? v.roles : [];
     if (roles.length > 50) fail('A job can have at most 50 labour lines.');
-    let labour = 0;
+    let labourC = 0;
     for (const [index, role] of roles.entries()) {
       const hours = nonNeg(role.hours, 'Hours on labour line ' + (index + 1));
       const rate = nonNeg(role.rate, 'Rate on labour line ' + (index + 1));
-      labour += hours * rate;
+      labourC += toCents(hours * rate);
     }
-    const materialsCost = nonNeg(v.materials ?? 0, 'Materials purchased');
+    const materialsC = toCents(nonNeg(v.materials ?? 0, 'Materials purchased'));
     const markupPct = pct(v.materialMarkupPct ?? 0, 'Materials markup');
-    const equipment = nonNeg(v.equipment ?? 0, 'Equipment cost');
+    const equipmentC = toCents(nonNeg(v.equipment ?? 0, 'Equipment cost'));
     const km = nonNeg(v.km ?? 0, 'Kilometres driven');
     const kmRate = nonNeg(v.kmRate ?? 0, 'Cost per kilometre');
-    const travel = nonNeg(v.travel ?? 0, 'Other travel cost');
+    const mileageC = toCents(km * kmRate);
+    const travelC = toCents(nonNeg(v.travel ?? 0, 'Other travel cost'));
     const contingencyPct = pct(v.contingencyPct ?? 0, 'Contingency');
-    const overhead = nonNeg(v.overhead ?? 0, 'Allocated overhead');
-    const price = nonNeg(v.price ?? 0, 'Customer price excluding GST');
+    const overheadC = toCents(nonNeg(v.overhead ?? 0, 'Allocated overhead'));
+    const priceC = toCents(nonNeg(v.price ?? 0, 'Customer price excluding GST'));
     const targetMarginPct = pct(v.targetMarginPct ?? 30, 'Target margin');
 
-    const mileage = km * kmRate;
-    const materialsWithMarkup = materialsCost * (1 + markupPct / 100);
-    const directCost = labour + materialsCost + equipment + mileage + travel;
-    const contingency = directCost * contingencyPct / 100;
-    const totalCost = directCost + contingency + overhead;
-    const margin = price - totalCost;
-    const marginPct = price > 0 ? margin / price * 100 : null;
-    const targetPrice = targetMarginPct < 100 ? totalCost / (1 - targetMarginPct / 100) : null;
-    const materialMarkupValue = materialsWithMarkup - materialsCost;
-    const sellPriceMaterials = materialsWithMarkup;
+    const markupC = roundCents(materialsC * markupPct / 100);
+    const directC = labourC + materialsC + equipmentC + mileageC + travelC;
+    const contingencyC = roundCents(directC * contingencyPct / 100);
+    const totalC = directC + contingencyC + overheadC;
+    const marginC = priceC - totalC;
+    const marginPct = priceC > 0 ? marginC / priceC * 100 : null;
+    const targetC = targetMarginPct < 100 ? ceilCents(totalC * 100 / (100 - targetMarginPct)) : null;
+    const dollars = (c) => c / 100;
     return {
-      metric: totalCost,
-      labour,
-      directCost,
-      contingency,
-      overhead,
-      totalCost,
-      mileage,
-      materialMarkupValue,
-      sellPriceMaterials,
-      price,
-      margin,
+      metric: dollars(totalC),
+      labour: dollars(labourC),
+      directCost: dollars(directC),
+      contingency: dollars(contingencyC),
+      overhead: dollars(overheadC),
+      totalCost: dollars(totalC),
+      mileage: dollars(mileageC),
+      materialCost: dollars(materialsC),
+      materialMarkupValue: dollars(markupC),
+      sellPriceMaterials: dollars(materialsC + markupC),
+      price: dollars(priceC),
+      margin: dollars(marginC),
       marginPct,
-      targetPrice,
+      targetPrice: targetC === null ? null : dollars(targetC),
       rows: [
-        ['Labour', labour],
-        ['Materials (at cost)', materialsCost],
-        ['Equipment, mileage and other travel', equipment + mileage + travel],
-        ['Contingency', contingency],
-        ['Allocated overhead', overhead],
-        ['Total job cost', totalCost],
-        ['Margin at entered price (ex GST)', margin]
+        ['Labour', dollars(labourC)],
+        ['Materials (at cost)', dollars(materialsC)],
+        ['Equipment, mileage and other travel', dollars(equipmentC + mileageC + travelC)],
+        ['Contingency (on direct cost only)', dollars(contingencyC)],
+        ['Allocated overhead', dollars(overheadC)],
+        ['Total job cost (ex GST)', dollars(totalC)],
+        ['Markup on materials (income inside the price, not cost)', dollars(markupC)],
+        ['Margin at entered price (ex GST)', dollars(marginC)]
       ]
     };
   }
@@ -915,6 +999,24 @@
   // sheet use the same ex-GST price.
   function costToQuoteLine(cost, description) {
     return { description: String(description ?? 'Service').slice(0, 160), quantity: 1, unitPrice: Math.round(cost.price * 100) / 100 };
+  }
+
+  // Local hand-off from the job-cost sheet to the quote builder. It is stored on
+  // this device only and never placed in a URL. The line is the ex-GST price.
+  const QUOTE_TRANSFER_KEY = 'titanQuoteTransferV1';
+  function quoteTransferRecord(cost, description, now) {
+    if (!(cost.price > 0)) fail('Enter a customer price above zero before sending to the quote builder.');
+    return { format: 'titan-zero-quote-line', savedAt: now, line: costToQuoteLine(cost, description) };
+  }
+  // Accepts only a well-formed line. Anything else is ignored.
+  function readQuoteTransfer(raw) {
+    let d;
+    try { d = JSON.parse(raw); } catch (_) { return null; }
+    const line = d && d.format === 'titan-zero-quote-line' ? d.line : null;
+    if (!line || typeof line.description !== 'string') return null;
+    const unitPrice = Number(line.unitPrice);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return null;
+    return { description: line.description.slice(0, 160), unitPrice };
   }
 
   // ---------------------------------------------------------------- #33 checklist state
@@ -999,6 +1101,83 @@
     return { total, done, complete: total > 0 && done === total };
   }
 
+  // A saved draft is untrusted input (it may be corrupt, edited by hand or from an older build).
+  // Anything that does not match the expected shape gives null, so the caller starts from the template.
+  // Task text is kept as plain text; nothing here renders HTML.
+  function parseChecklistDraft(raw, industryId, templates) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (_) { return null; }
+    const state = parsed && parsed.state;
+    if (!state || typeof state !== 'object' || !Array.isArray(state.tasks)) return null;
+    if (state.industry !== industryId || !Array.isArray(templates[industryId])) return null;
+    const tasks = [];
+    for (const task of state.tasks) {
+      if (!task || typeof task.id !== 'string' || typeof task.text !== 'string') continue;
+      const text = task.text.trim().slice(0, 240);
+      if (!text) continue;
+      tasks.push({
+        id: task.id.slice(0, 80),
+        key: typeof task.key === 'string' ? task.key.slice(0, 80) : task.id.slice(0, 80),
+        text,
+        done: task.done === true,
+        note: typeof task.note === 'string' ? task.note.slice(0, 300) : '',
+        custom: task.custom === true
+      });
+    }
+    return {
+      ...emptyChecklist(industryId),
+      job: typeof state.job === 'string' ? state.job.slice(0, 120) : '',
+      signOffNote: typeof state.signOffNote === 'string' ? state.signOffNote.slice(0, 500) : '',
+      tasks
+    };
+  }
+
+  // Plain-text working copy for a local download. No network; no business data leaves the browser.
+  function checklistText(state, industryName) {
+    const p = checklistProgress(state);
+    const lines = ['Service checklist: ' + (industryName || state.industry)];
+    if (state.job) lines.push('Job or site: ' + state.job);
+    lines.push('Progress: ' + p.done + ' of ' + p.total + ' tasks done' + (p.complete ? '. All tasks complete.' : '.'));
+    lines.push('');
+    state.tasks.forEach((task, index) => {
+      lines.push((index + 1) + '. [' + (task.done ? 'x' : ' ') + '] ' + task.text);
+      if (task.note) lines.push('   Evidence or note: ' + task.note);
+    });
+    if (state.signOffNote) {
+      lines.push('');
+      lines.push('Sign-off or site note: ' + state.signOffNote);
+    }
+    lines.push('');
+    lines.push('Review every step before use. This checklist does not replace safe-work procedures, licence requirements or your own sign-off.');
+    return lines.join('\n') + '\n';
+  }
+
+  // ---------------------------------------------------------------- #34 pricing handoff
+  // Figures saved by Service pricing (planner-ui.js). The Quote Builder and Job Cost Sheet read them
+  // back as untrusted input: anything out of range or of the wrong type gives null and is not offered.
+  const PRICING_HANDOFF_KEY = 'titanPricingHandoffV1';
+  function parsePricingHandoff(raw) {
+    let saved;
+    try { saved = JSON.parse(raw); } catch (_) { return null; }
+    if (!saved || typeof saved !== 'object') return null;
+    const money = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1000000 ? Math.round(x * 100) / 100 : null);
+    const pct = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 99.99 ? x : null);
+    const hours = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 10000 ? x : null);
+    const figures = {
+      role: typeof saved.role === 'string' ? saved.role.trim().slice(0, 80) : '',
+      labourHours: hours(saved.labourHours),
+      labourRate: money(saved.labourRate),
+      materials: money(saved.materials),
+      travel: money(saved.travel),
+      equipment: money(saved.equipment),
+      overhead: money(saved.overhead),
+      contingencyPct: pct(saved.contingencyPct),
+      targetMarginPct: pct(saved.targetMarginPct),
+      targetPrice: money(saved.targetPrice)
+    };
+    return Object.values(figures).some(value => value === null) ? null : figures;
+  }
+
   const api = {
     WEEKS_PER_MONTH,
     adminCost,
@@ -1011,8 +1190,13 @@
     quoteTotals,
     quoteRecordId,
     saveQuoteRecord,
+    restoreQuote,
+    quoteValidUntil,
     jobCostSheet,
     costToQuoteLine,
+    quoteTransferRecord,
+    readQuoteTransfer,
+    QUOTE_TRANSFER_KEY,
     templateTasks,
     emptyChecklist,
     reconcileChecklist,
@@ -1024,6 +1208,10 @@
     setTaskDone,
     setTaskNote,
     checklistProgress,
+    parseChecklistDraft,
+    checklistText,
+    PRICING_HANDOFF_KEY,
+    parsePricingHandoff,
     QUOTE_STORE_KEY,
     QUOTE_LIMIT
   };
