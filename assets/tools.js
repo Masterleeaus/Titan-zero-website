@@ -206,10 +206,73 @@ showCalculatorResult(result,definition,outcome,values);
 tabs.forEach(tab=>tab.addEventListener('click',()=>{if(!defaults[tab.dataset.toolTab])return;active=tab.dataset.toolTab;draw();}));
 root.addEventListener('toolverticalchange',draw);
 draw();
+addAssumptionsTools(root);
+}
+// Portable assumptions file (#106). Numbers for the active service type only. Import is all-or-nothing:
+// the engine refuses the whole file on any problem, and the values are applied only after the user confirms.
+function addAssumptionsTools(root){
+const ids=verticalOptions.map(item=>item.id);
+const panel=document.createElement('section');panel.className='assumptions-tools';panel.setAttribute('aria-label','Assumptions file');
+const heading=textNode('h3','Save or load your assumptions');
+const note=textNode('p','The file holds numbers only for the service type shown above. It has no business name, customer, staff or quote text.','fine-print');
+const exportButton=document.createElement('button');exportButton.type='button';exportButton.className='button button-secondary';exportButton.textContent='Download assumptions file';
+const label=document.createElement('label');label.htmlFor='assumptions-file';label.textContent='Load an assumptions file';
+const input=document.createElement('input');input.type='file';input.id='assumptions-file';input.accept='.json,application/json';
+const status=textNode('p','','fine-print');status.setAttribute('role','status');
+const preview=document.createElement('div');
+exportButton.addEventListener('click',()=>{
+try{
+const doc=engine.exportAssumptions(profile,profile.activeVertical,ids);
+const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='titan-tool-assumptions-'+profile.activeVertical+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+status.textContent='Downloaded '+Object.keys(doc.assumptions).length+' saved values for '+currentIndustry().name+'.';
+}catch(error){status.textContent=error.message;}
+});
+input.addEventListener('change',()=>{
+preview.replaceChildren();
+const file=input.files&&input.files[0];
+if(!file)return;
+if(file.size>engine.PORTABLE_MAX_CHARS){status.textContent='The file is too large to import. Nothing was imported.';input.value='';return;}
+const reader=new FileReader();
+reader.addEventListener('load',()=>{
+const checked=engine.validateImport(String(reader.result||''),ids);
+input.value='';
+if(!checked.ok){status.textContent='Not imported. '+checked.errors.map(item=>item.message).join(' ');return;}
+if(checked.value.vertical!==profile.activeVertical){status.textContent='This file is for '+(industryById[checked.value.vertical]?.name||'another service type')+'. Switch to that service type first. Nothing was imported.';return;}
+const pairs=Object.entries(checked.value.assumptions).map(([key,value])=>key+': '+value);
+const list=textNode('p','Values ready to import ('+pairs.length+'): '+pairs.join('; '),'fine-print');
+const apply=document.createElement('button');apply.type='button';apply.className='button button-primary';apply.textContent='Import these values';
+apply.addEventListener('click',()=>{
+const next=engine.applyImport(profile,checked);
+profile.assumptions=next.profile.assumptions;saveProfile();
+preview.replaceChildren();status.textContent='Imported '+next.applied.length+' values. Submit the calculator to see new results.';
+root.dispatchEvent(new CustomEvent('toolverticalchange'));
+});
+preview.append(list,apply);
+});
+reader.addEventListener('error',()=>{status.textContent='The file could not be read. Nothing was imported.';});
+reader.readAsText(file);
+});
+panel.append(heading,note,exportButton,label,input,status,preview);
+root.append(panel);
 }
 document.querySelectorAll('[data-tools-app]').forEach(initializeCalculator);
 function dateText(iso){return new Date(iso+'T00:00:00Z').toLocaleDateString('en-AU',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'});}
 const QUOTE_TAX_TEXT={none:'No GST applied on this quote.',exclusive:'Prices exclude GST. GST is added on top.',inclusive:'Prices include GST. GST is shown inside the total.'};
+// Offers the figures saved by Service pricing, but only when the user clicks. The saved figures are
+// read through the calc parser, so a damaged or hand-edited value is ignored and nothing is shown.
+function offerPricingHandoff(box,calc,apply){
+if(!box||!calc||typeof calc.parsePricingHandoff!=='function')return;
+let figures=null;
+try{figures=calc.parsePricingHandoff(localStorage.getItem(calc.PRICING_HANDOFF_KEY));}catch(_){figures=null;}
+if(!figures)return;
+const label=figures.role?'for '+figures.role:'from your last calculation';
+const note=textNode('p',`Service pricing figures ${label} are saved on this device. They exclude GST. Nothing is uploaded.`,'fine-print');
+note.setAttribute('role','status');
+const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Use the Service pricing figures';
+button.addEventListener('click',()=>apply(figures));
+box.replaceChildren(note,button);box.hidden=false;
+}
 function initializeQuoteBuilder(root){
 const calc=engine.formulas;
 const form=root.querySelector('[data-quote-form]'),lines=root.querySelector('[data-quote-lines]'),output=root.querySelector('[data-quote-result]');
@@ -217,6 +280,12 @@ if(!form||!lines||!output||!calc)return;
 const status=root.querySelector('[data-quote-status]'),savedSelect=root.querySelector('[data-quote-saved]');
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+f('service').value=figures.role||f('service').value;
+f('taxMode').value='exclusive';
+lines.replaceChildren();addLine('Service from pricing tool',1,figures.targetPrice);
+render();say('Figures from Service pricing added. Prices exclude GST; check the scope and quantities before you save.');
+});
 let version=0;let savedAt=null;
 const say=(text)=>{if(status)status.textContent=text;};
 function readStore(){try{const s=JSON.parse(localStorage.getItem(calc.QUOTE_STORE_KEY)||'{}');return{quotes:Array.isArray(s.quotes)?s.quotes:[]};}catch(_){return{quotes:[]};}}
@@ -348,6 +417,12 @@ const form=root.querySelector('[data-job-cost-form]'),output=root.querySelector(
 if(!form||!output||!roles||!calc)return;
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+roles.replaceChildren();addRole(figures.role||'Labour',figures.labourHours,figures.labourRate);
+f('materials').value=figures.materials;f('materialMarkupPct').value=0;f('equipment').value=figures.equipment;
+f('km').value=0;f('kmRate').value=0;f('travel').value=figures.travel;f('overhead').value=figures.overhead;
+f('contingencyPct').value=figures.contingencyPct;f('target').value=figures.targetMarginPct;f('price').value=figures.targetPrice;
+});
 function addRole(name='',hours=1,rate=0){
 const row=document.createElement('div');row.className='quote-line-row';
 const wrap=(label,input)=>{const l=document.createElement('label');l.textContent=label;l.append(input);return l;};
@@ -377,7 +452,8 @@ output.append(list);
 output.append(textNode('p','Costs are kept separate from the price. GST is not included in any cost or in the price shown here. The target price is an arithmetic scenario, not a recommendation.','fine-print'));
 const send=document.createElement('button');send.type='button';send.className='button button-secondary';send.textContent='Send price to the quote builder';
 const sendStatus=textNode('p','Sends the customer price ex GST as one quote line. It stays on this device and is not put in a link.','fine-print');sendStatus.setAttribute('role','status');
-send.addEventListener('click',()=>{try{const rec=calc.quoteTransferRecord(c,f('service').value.trim(),new Date().toISOString());localStorage.setItem(calc.QUOTE_TRANSFER_KEY,JSON.stringify(rec));sendStatus.textContent='Price sent. Open the quote builder on this device to review the line.';}catch(error){sendStatus.textContent=error.message;}});
+send.addEventListener('click',()=>{try{// Fixed line text: the service name is job text and is never sent (#106).
+const rec=calc.quoteTransferRecord(c,'Service from job-cost sheet',new Date().toISOString());localStorage.setItem(calc.QUOTE_TRANSFER_KEY,JSON.stringify(rec));sendStatus.textContent='Price sent. Open the quote builder on this device to review the line.';}catch(error){sendStatus.textContent=error.message;}});
 output.append(send,sendStatus);
 const context={tool:'Job-cost sheet',vertical:currentIndustry().name,business:businessName,service:f('service').value.trim(),result:'Total cost '+money(c.totalCost)+'; price (ex GST) '+money(c.price)+'; margin '+(c.marginPct===null?'n/a':c.marginPct.toFixed(1)+'%')+'.',calculation:`Labour ${money(c.labour)}; direct costs ${money(c.directCost)}; contingency ${money(c.contingency)}; overhead ${money(c.overhead)}.`};
 addHandoffButtons(output,context);
