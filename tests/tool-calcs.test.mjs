@@ -100,6 +100,23 @@ test('hiring: contractor comparison uses the same billable hours', () => {
   assert.equal(typeof r.contractorCheaper, 'boolean');
 });
 
+test('hiring: extra job hours are whole jobs times job duration, and zero margin gives none', () => {
+  const r = C.hiringCost({ salary: 52000, oncost: 0, margin: 100, jobHours: 2 });
+  assert.equal(r.jobsNeeded, Math.ceil(52000 / 12 / 100));
+  close(r.extraHours, r.jobsNeeded * 2);
+  const none = C.hiringCost({ salary: 65000, oncost: 18, margin: 0, jobHours: 2 });
+  assert.equal(none.extraHours, null);
+  assert.equal(C.hiringCost({ salary: 65000, oncost: 18, margin: -40 }).contractorCheaper, null);
+});
+
+test('hiring: contractor verdict is only given when a contractor rate is entered', () => {
+  assert.equal(C.hiringCost({ salary: 65000, oncost: 18, margin: 100 }).contractorCheaper, null);
+  const cheap = C.hiringCost({ salary: 65000, oncost: 18, margin: 100, contractorRate: 1 });
+  assert.equal(cheap.contractorCheaper, true);
+  const dear = C.hiringCost({ salary: 65000, oncost: 18, margin: 100, contractorRate: 500 });
+  assert.equal(dear.contractorCheaper, false);
+});
+
 test('hiring: zero paid hours is refused rather than dividing by zero', () => {
   assert.throws(() => C.hiringCost({ salary: 65000, oncost: 18, margin: 100, paidHours: 0 }), /above zero/);
 });

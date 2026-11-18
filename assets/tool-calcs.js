@@ -110,7 +110,9 @@
         ['Billable hours per month (roster)', billableHours.toFixed(1)],
         ['Employee cost per billable hour', employeeCostPerBillableHour === null ? 'n/a' : employeeCostPerBillableHour],
         ['Contractor cost at the same billable hours', contractorRate > 0 ? contractorCost : 'Not entered'],
-        ['Additional jobs/month to cover the cost', jobsNeeded === null ? 'Not achievable' : jobsNeeded]
+        ['Contractor or employee at these hours', contractorRate > 0 ? (contractorCost < monthlyCost ? 'Contractor rate is lower' : 'Employee cost is lower or equal') : 'Not compared (no contractor rate entered)'],
+        ['Additional jobs/month to cover the cost', jobsNeeded === null ? 'Not achievable' : jobsNeeded],
+        ['Job hours/month needed for those extra jobs', extraHours === null ? 'Not achievable' : extraHours.toFixed(1) + ' hours']
       ]
     };
   }
