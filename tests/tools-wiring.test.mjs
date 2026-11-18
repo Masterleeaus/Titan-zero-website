@@ -102,6 +102,15 @@ test('leads and invoice (#105): engine rules describe the live funnel and ageing
   assert.match(source, /engine\.validate\(active,Object\.fromEntries\(new FormData\(form\)\.entries\(\)\)\)/, 'blanks are validated as raw strings');
 });
 
+test('leads and invoice (#105): engine headline values match the live funnel and ageing calculators', () => {
+  const leadInput = { leads: 100, value: 450, contribPct: 100, base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80,
+    alt_contacted: 92, alt_qualified: 50, alt_booked: 62, alt_completed: 80 };
+  const invoiceInput = { invoices: 80, avg: 520, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3,
+    collect_d0_30: 95, collect_d31_60: 80, collect_d61_90: 50, collect_d90: 20, chase: 7 };
+  assert.ok(Math.abs(E.calculators.leads(leadInput).metric - C.leadConversion(leadInput).revenueDelta) <= HALF_CENT);
+  assert.ok(Math.abs(E.calculators.invoice(invoiceInput).metric - C.invoiceCollection(invoiceInput).beyondTerms) <= HALF_CENT);
+});
+
 test('profile migration (#43): every assumption a live tool persists survives V2 to V3', () => {
   const v2 = {
     verticals: ['cleaning'], activeVertical: 'cleaning', businessName: 'Acme',

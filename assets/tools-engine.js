@@ -283,12 +283,18 @@
     };
   }
 
+  // Live four-stage funnel (#105): the lead-to-completed rate is the product of the stage shares.
+  function funnelShare(v, prefix) {
+    return FUNNEL_STAGES.reduce((rate, stage) => rate * v[prefix + '_' + stage] / 100, 1);
+  }
   function leads(v) {
-    const cents = safeCents(Math.round(v.leads * (v.target - v.current) / 100 * toCents(v.value)));
+    const baseRate = funnelShare(v, 'base');
+    const scenRate = funnelShare(v, 'alt');
+    const cents = safeCents(Math.round(v.leads * (scenRate - baseRate) * toCents(v.value)));
     return {
       status: 'ok', metric: fromCents(cents), format: 'currency',
       label: 'Scenario revenue difference/month',
-      math: v.leads + ' leads × (' + v.target + '% − ' + v.current + '%) × ' + formatMoney(v.value),
+      math: v.leads + ' leads × (' + (scenRate * 100).toFixed(1) + '% − ' + (baseRate * 100).toFixed(1) + '%) × ' + formatMoney(v.value),
       notes: [
         'This shows what the selected conversion change would be worth.',
         'It does not claim that software, marketing or AI will cause that improvement.',
@@ -296,13 +302,15 @@
     };
   }
 
+  // Beyond terms means unpaid 31 days or more (#105): the 31-60, 61-90 and 90+ buckets.
   function invoice(v) {
     const billedCents = safeCents(v.invoices * toCents(v.avg));
-    const overdueCents = safeCents(Math.round(billedCents * v.overdue / 100));
+    const beyondShare = AGEING_BUCKETS.filter((b) => b !== 'd0_30').reduce((sum, b) => sum + v['age_' + b], 0);
+    const overdueCents = safeCents(Math.round(billedCents * beyondShare / 100));
     return {
       status: 'ok', metric: fromCents(overdueCents), format: 'currency',
       label: 'Value typically beyond terms',
-      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + v.overdue + '%',
+      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + beyondShare + '%',
       notes: [
         'Monthly invoicing represented: ' + formatMoney(fromCents(billedCents)) + '.',
         v.chase + ' hours/month are also spent on collection activity.',
