@@ -12,7 +12,7 @@ const catalogue = JSON.parse(readFileSync(join(ROOT, 'assets/upgrade-catalogue.j
 
 test('hub has one h1 and the hero offers both free and upgrade actions', () => {
   assert.equal((hub.match(/<h1\b/gi) || []).length, 1);
-  assert.match(hub, /href="\/support\/">Get the free plugin</);
+  assert.match(hub, /href="\/support\/">Ask for the free plugin</);
   assert.match(hub, /href="#upgrades">Explore upgrades</);
 });
 
