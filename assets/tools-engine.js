@@ -60,7 +60,7 @@
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
-      adminRate: rule.money('Loaded hourly cost'),
+      adminRate: rule.money('Hourly wage before on-costs'),
     },
     hire: {
       salary: rule.money('Annual salary'),
@@ -363,7 +363,7 @@
   const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
   const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
-    'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
+    'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',
     'daysPerWeek', 'leaveDays', 'nonbillPct', 'travelMin', 'cancelPct', 'reachPct', 'contribPct',
     'commsPerEnquiry', 'chase',
