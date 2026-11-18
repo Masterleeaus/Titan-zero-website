@@ -155,9 +155,50 @@ test('profit: markup and gross margin are labelled separately', () => {
   close(r.markupPct, 50);
 });
 
-test('profit: target margin gives the price needed including overhead', () => {
+test('profit: target gross margin prices direct cost only, before overhead', () => {
   const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, overhead: 20, targetMarginPct: 40 });
-  close(r.priceForTarget, 120 / 0.6);
+  close(r.priceForTarget, 100 / 0.6);
+  close(r.targetGap, 100 / 0.6 - 300);
+});
+
+test('profit: after-overhead target is shown separately and includes overhead', () => {
+  const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, overhead: 20, targetMarginPct: 40 });
+  close(r.priceForNetTarget, 120 / 0.6);
+  assert.notEqual(r.priceForNetTarget, r.priceForTarget);
+});
+
+test('profit: 100% target gives no price, and the after-overhead target is also absent', () => {
+  const r = C.jobProfitability({ jobRevenue: 300, labour: 100, materials: 0, travel: 0, targetMarginPct: 100 });
+  assert.equal(r.priceForTarget, null);
+  assert.equal(r.priceForNetTarget, null);
+});
+
+test('profit: write-off reduces net revenue once, separately from discount', () => {
+  const r = C.jobProfitability({ jobRevenue: 200, discountPct: 10, writeOffPct: 5, labour: 100, materials: 0, travel: 0 });
+  close(r.discountAmount, 20);
+  close(r.writeOffAmount, 10);
+  close(r.netRevenue, 170);
+  close(r.contribution, 70);
+});
+
+test('profit: scenario shows contribution with no discount or write-off alongside the entered figures', () => {
+  const r = C.jobProfitability({ jobRevenue: 200, discountPct: 10, writeOffPct: 5, labour: 100, materials: 0, travel: 0 });
+  close(r.contributionNoAdjust, 100);
+  close(r.contribution, 70);
+});
+
+test('profit: discount plus write-off above 100% is refused', () => {
+  assert.throws(() => C.jobProfitability({ jobRevenue: 100, discountPct: 60, writeOffPct: 50, labour: 10, materials: 0, travel: 0 }), /cannot exceed 100%/);
+  const edge = C.jobProfitability({ jobRevenue: 100, discountPct: 60, writeOffPct: 40, labour: 10, materials: 0, travel: 0 });
+  close(edge.netRevenue, 0);
+  assert.equal(edge.grossMarginPct, null);
+});
+
+test('profit: revenue, discount, write-off and tax reconcile with nothing counted twice', () => {
+  const r = C.jobProfitability({ jobRevenue: 220, taxMode: 'inclusive', taxRate: 10, discountPct: 10, writeOffPct: 10, labour: 50, materials: 30, travel: 10, overhead: 15 });
+  close(r.taxInside + r.discountAmount + r.writeOffAmount + r.netRevenue, 220);
+  close(r.netProfit, r.netRevenue - r.directCost - r.overhead);
+  assert.equal(r.reconciles, true);
 });
 
 test('profit: zero revenue and zero cost do not produce a margin number', () => {
