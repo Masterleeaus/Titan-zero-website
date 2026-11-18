@@ -274,6 +274,94 @@ function runChecklist(rawDraft = null) {
   check('clear removes the quote store', r.localStorage.getItem('titanQuotesV1') === null);
 }
 
+// 8. Service pricing to Quote Builder and Job Cost Sheet (#34). Figures are saved only after a click,
+// stay in this browser, are offered only when valid, and are applied only after a second click.
+function loadPage(page, rawStorage = {}, scripts = ['assets/site-data.js', 'assets/site.js', 'assets/planner-calcs.js', 'assets/planner-ui.js', 'assets/tools-engine.js', 'assets/tools.js']) {
+  const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/gi, ''), {
+    url: 'https://titanzero.io/tools/x/',
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+  });
+  const { window } = dom;
+  window.print = () => {};
+  window.confirm = () => true;
+  window.alert = () => {};
+  window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
+  window.URL.createObjectURL = () => 'blob:handoff-test';
+  window.URL.revokeObjectURL = () => {};
+  for (const [key, raw] of Object.entries(rawStorage)) window.localStorage.setItem(key, raw);
+  const errors = [];
+  for (const script of scripts) {
+    const tag = new RegExp('src="/' + script.replace(/[.]/g, '\\.') + '\\?');
+    if (!tag.test(html)) continue;
+    try { window.eval(fs.readFileSync(path.join(ROOT, script), 'utf8')); } catch (error) { errors.push(script + ': ' + error.message); }
+  }
+  return { window, doc: window.document, errors };
+}
+
+const pricingInputs = { role: 'Technician', labourHours: 2, labourRate: 45, materials: 20.5, travel: 10, equipment: 5, overhead: 12.25, contingencyPct: 10, targetMarginPct: 30, discountPct: 0, gst: 'no' };
+{
+  const r = loadPage('pages/tool-service-pricing.html');
+  const form = r.doc.querySelector('[data-planner-form]');
+  for (const [key, value] of Object.entries(pricingInputs)) {
+    const control = form.elements.namedItem(key);
+    if (control) control.value = String(value);
+  }
+  form.dispatchEvent(new r.window.Event('submit', { bubbles: true, cancelable: true }));
+  const saveButton = [...r.doc.querySelectorAll('[data-planner-result] button')].find((b) => /Save these figures/.test(b.textContent));
+  check('pricing: save button is a native button after a calculation', Boolean(saveButton) && saveButton.disabled === false);
+  check('pricing: nothing is saved before the click', r.window.localStorage.getItem('titanPricingHandoffV1') === null);
+  saveButton.dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  const saved = JSON.parse(r.window.localStorage.getItem('titanPricingHandoffV1') || 'null');
+  check('pricing: saved target price is the cent-rounded ex-GST figure (A$214.72)', saved && saved.targetPrice === 214.72, JSON.stringify(saved));
+  check('pricing: saved role and overhead are the entered values', saved && saved.role === 'Technician' && saved.overhead === 12.25, JSON.stringify(saved));
+  check('pricing: no tabindex above zero on the planner page', ![...r.doc.querySelectorAll('[tabindex]')].some((el) => Number(el.getAttribute('tabindex')) > 0));
+  check('pricing: no script errors on the planner page', r.errors.length === 0, r.errors.join('; '));
+}
+
+{
+  const r = loadPage('pages/tool-service-pricing.html');
+  const form = r.doc.querySelector('[data-planner-form]');
+  for (const [key, value] of Object.entries({ ...pricingInputs, targetMarginPct: 100 })) {
+    const control = form.elements.namedItem(key);
+    if (control) control.value = String(value);
+  }
+  form.dispatchEvent(new r.window.Event('submit', { bubbles: true, cancelable: true }));
+  const saveButton = [...r.doc.querySelectorAll('[data-planner-result] button')].find((b) => /Save these figures/.test(b.textContent));
+  check('pricing: at a 100% target margin the save button is disabled, never saving Infinity', Boolean(saveButton) && saveButton.disabled === true);
+}
+
+{
+  const saved = JSON.stringify({ role: 'Technician', labourHours: 2, labourRate: 45, materials: 20.5, travel: 10, equipment: 5, overhead: 12.25, contingencyPct: 10, targetMarginPct: 30, targetPrice: 214.72 });
+  const r = loadPage('pages/tool-quote-builder.html', { titanPricingHandoffV1: saved });
+  const box = r.doc.querySelector('[data-pricing-handoff]');
+  check('quote: the saved figures are offered on the quote page', box && box.hidden === false);
+  const lineBefore = r.doc.querySelectorAll('[data-quote-lines] .quote-line-row').length;
+  box.querySelector('button').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  const price = r.doc.querySelector('[data-quote-lines] input[name="line-price"]');
+  check('quote: applying the figures sets one line at the saved ex-GST price', price && price.value === '214.72' && r.doc.querySelectorAll('[data-quote-lines] .quote-line-row').length === 1 && lineBefore >= 1, price && price.value);
+  check('quote: applying the figures switches the quote to prices excluding GST', r.doc.querySelector('select[name="taxMode"]').value === 'exclusive');
+  check('quote: no script errors on the quote page', r.errors.length === 0, r.errors.join('; '));
+}
+
+{
+  const saved = JSON.stringify({ role: 'Technician', labourHours: 2, labourRate: 45, materials: 20.5, travel: 10, equipment: 5, overhead: 12.25, contingencyPct: 10, targetMarginPct: 30, targetPrice: 214.72 });
+  const r = loadPage('pages/tool-job-cost-sheet.html', { titanPricingHandoffV1: saved });
+  r.doc.querySelector('[data-pricing-handoff] button').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  const hours = r.doc.querySelector('[data-job-roles] input[name="role-hours"]');
+  const rate = r.doc.querySelector('[data-job-roles] input[name="role-rate"]');
+  check('job cost: applying the figures sets labour hours and rate', hours && hours.value === '2' && rate && rate.value === '45');
+  check('job cost: applying the figures sets the price and target margin', r.doc.querySelector('[name="price"]').value === '214.72' && r.doc.querySelector('[name="target"]').value === '30');
+  check('job cost: applying the figures sets overhead and materials', r.doc.querySelector('[name="overhead"]').value === '12.25' && r.doc.querySelector('[name="materials"]').value === '20.5');
+}
+
+{
+  const r = loadPage('pages/tool-quote-builder.html', { titanPricingHandoffV1: '{corrupt' });
+  check('quote: a corrupt save is not offered', r.doc.querySelector('[data-pricing-handoff]').hidden === true);
+  check('quote: a corrupt save does not throw', r.errors.length === 0, r.errors.join('; '));
+}
+
 if (failures.length) {
   console.error('FAIL: ' + failures.length + ' check(s) failed, ' + passed + ' passed');
   for (const f of failures) console.error('- ' + f);

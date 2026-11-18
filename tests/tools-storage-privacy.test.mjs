@@ -19,6 +19,8 @@ const STORED_KEYS = {
   titanQuotesV1: 'saved quotes: lines, scope, terms and reference; customer name only with consent',
   titanQuoteTransferV1: 'one job-cost price line, removed when the quote builder reads it',
   titanChecklistDraftV1: 'checklist ticks, notes, job or site name and sign-off note',
+  // Written by the service pricing planner (#34). Numbers plus a free-text role label.
+  titanPricingHandoffV1: 'service pricing figures for quote builder and job-cost sheet; includes a role label the user typed',
 };
 
 test('the clear control removes the V2 and V3 profiles and the quote store (#107)', () => {
