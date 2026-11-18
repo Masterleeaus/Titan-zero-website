@@ -10,6 +10,32 @@ const C = runInNewContext(source + '\n;globalThis.TitanToolCalcs', {});
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, message || `${actual} != ${expected}`);
 
 // ---- #24 admin cost
+test('admin: on-costs default to zero, so the original value is unchanged', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 45 });
+  close(r.loadedRate, 45);
+  close(r.capacityValue, 1950);
+  close(C.adminCost({ adminHours: 10, adminRate: 45, oncostPct: 0 }).capacityValue, 1950);
+});
+
+test('admin: on-costs raise the loaded rate and every value that uses it', () => {
+  const r = C.adminCost({ adminHours: 10, adminRate: 40, oncostPct: 25, reclaimPct: 50 });
+  close(r.loadedRate, 50, 'A$40 wage plus 25% on-costs');
+  close(r.capacityValue, 10 * 52 / 12 * 50);
+  close(r.recoveredValue, 10 * 0.5 * 52 / 12 * 50);
+});
+
+test('admin: weeks convert to months with 52 / 12 (an average month, not a calendar month)', () => {
+  const r = C.adminCost({ adminHours: 12, adminRate: 10 });
+  close(r.weeksPerMonth, 52 / 12);
+  close(r.capacityValue, 12 * 52 / 12 * 10);
+});
+
+test('admin: on-costs must be a number between 0 and 200 percent', () => {
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: -1 }), /at least 0|must be/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 201 }), /must be 0 to 200/);
+  assert.throws(() => C.adminCost({ adminHours: 5, adminRate: 40, oncostPct: 'x' }), /must be a number/);
+});
+
 test('admin: default inputs reproduce the original hours x 52/12 x rate value', () => {
   const r = C.adminCost({ adminHours: 10, adminRate: 45 });
   close(r.metric, 10 * 52 / 12 * 45);
@@ -293,6 +319,47 @@ test('invoice: ageing shares cannot exceed 100% in total', () => {
 test('invoice: zero invoices produce zero value and no hours per thousand', () => {
   const r = C.invoiceCollection(invoiceInput({ invoices: 0 }));
   assert.equal(r.beyondTerms, 0);
+  assert.equal(r.hoursPerThousandBeyondTerms, null);
+});
+
+test('invoice: default terms are 30 days and the 31+ buckets are beyond them', () => {
+  const r = C.invoiceCollection(invoiceInput());
+  assert.equal(r.terms, 30);
+  close(r.beyondTerms, r.outstanding.d31_60 + r.outstanding.d61_90 + r.outstanding.d90);
+});
+
+test('invoice: longer terms count fewer buckets as beyond terms', () => {
+  // 45 days: the 31-60 bucket starts before the due day, so only 61+ counts.
+  const r45 = C.invoiceCollection(invoiceInput({ terms: 45 }));
+  close(r45.beyondTerms, r45.outstanding.d61_90 + r45.outstanding.d90);
+  // 14 days: every bucket except 0-30 starts after the due day.
+  const r14 = C.invoiceCollection(invoiceInput({ terms: 14 }));
+  close(r14.beyondTerms, r14.outstanding.d31_60 + r14.outstanding.d61_90 + r14.outstanding.d90);
+});
+
+test('invoice: a bucket that straddles the due day is not counted as beyond terms', () => {
+  const r = C.invoiceCollection(invoiceInput({ terms: 14, age_d0_30: 20, age_d31_60: 0, age_d61_90: 0, age_d90: 0 }));
+  close(r.beyondTerms, 0);
+});
+
+test('invoice: cash splits into weeks 1-4 and 5-13 and adds back to the 13-week figure', () => {
+  const r = C.invoiceCollection(invoiceInput({ within4: 50 }));
+  close(r.cashIn4Weeks, r.cashIn13Weeks * 0.5);
+  close(r.cashWeeks5To13, r.cashIn13Weeks * 0.5);
+  close(r.cashIn4Weeks + r.cashWeeks5To13, r.cashIn13Weeks);
+});
+
+test('invoice: cash timing share defaults to 60% and terms and shares are range checked', () => {
+  const r = C.invoiceCollection(invoiceInput());
+  close(r.cashIn4Weeks, r.cashIn13Weeks * 0.6);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ within4: 101 })), /must be 0 to 100/);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ terms: -1 })), /at least 0/);
+  assert.throws(() => C.invoiceCollection(invoiceInput({ terms: 121 })), /120 days or fewer/);
+});
+
+test('invoice: no unpaid balances gives zero value, zero cash and no error', () => {
+  const r = C.invoiceCollection(invoiceInput({ age_d31_60: 0, age_d61_90: 0, age_d90: 0 }));
+  close(r.beyondTerms, 0);
   assert.equal(r.hoursPerThousandBeyondTerms, null);
 });
 

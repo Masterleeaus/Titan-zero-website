@@ -98,7 +98,7 @@ test('leads and invoice: engine rules describe a single-rate model, so the contr
 test('profile migration (#43): every assumption a live tool persists survives V2 to V3', () => {
   const v2 = {
     verticals: ['cleaning'], activeVertical: 'cleaning', businessName: 'Acme',
-    adminHours: 12, reclaimPct: 30, cashPct: 10, reinvestPct: 5, superPct: 11, leavePct: 2,
+    adminHours: 12, reclaimPct: 30, cashPct: 10, reinvestPct: 5, oncostPct: 22, superPct: 11, leavePct: 2,
     base_contacted: 90, alt_completed: 85, age_d31_60: 10, collect_d90: 20, chase: 7,
     taxRate: 10, discountPct: 4, targetMarginPct: 30, daysPerWeek: 5, cancelPct: 3, reachPct: 20,
     evil: 'x', ghost: 1,
@@ -106,7 +106,7 @@ test('profile migration (#43): every assumption a live tool persists survives V2
   const r = E.migrateProfile({ v2, industryIds: ['cleaning'] });
   assert.equal(r.migratedFromV2, true);
   const kept = r.profile.assumptions.cleaning;
-  for (const key of ['adminHours', 'reclaimPct', 'cashPct', 'reinvestPct', 'superPct', 'leavePct', 'base_contacted', 'alt_completed',
+  for (const key of ['adminHours', 'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'base_contacted', 'alt_completed',
     'age_d31_60', 'collect_d90', 'chase', 'taxRate', 'discountPct', 'targetMarginPct', 'daysPerWeek', 'cancelPct', 'reachPct']) {
     assert.equal(kept[key] !== undefined, true, key + ' should survive migration');
   }
