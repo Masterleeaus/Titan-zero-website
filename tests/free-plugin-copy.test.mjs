@@ -55,5 +55,5 @@ test('plugin licence and sign-in statements stay consistent across terms and FAQ
 
 test('pricing states free plugin status with the support route, not a checkout', () => {
   const html = read('pages/pricing.html');
-  assert.match(html, /<a class="button[^"]*" href="\/support\/">Get the free plugin<\/a>/);
+  assert.match(html, /<a class="button[^"]*" href="\/support\/">Ask for the free plugin<\/a>/);
 });
