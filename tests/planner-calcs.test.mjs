@@ -296,6 +296,32 @@ test('staff: makes no competency claim from training hours', () => {
   assert.match(r.notes.join(' '), /does not infer skills or competence/);
 });
 
+test('staff: scenario minus current gives hour, contribution and utilisation differences', () => {
+  const current = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 4, travelHours: 6, contribPerHour: 60 })] });
+  const scenario = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 0, travelHours: 6, contribPerHour: 60 })] });
+  const diff = P.pairStaff(current, scenario);
+  assert.equal(diff[0].v, 8); // 2 people x 4 training hours returned to productive time
+  assert.equal(diff[1].v, 480); // 8 hours x A$60
+  assert.equal(diff[2].v, 10); // 75% to 85%
+});
+
+test('staff: pairing returns nothing when either scenario is refused', () => {
+  const ok = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  const bad = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ contractedHours: 500 })] });
+  assert.deepEqual(P.pairStaff(ok, bad), []);
+});
+
+test('staff: no available hours in one scenario is shown as not available, not zero', () => {
+  const none = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 0 })] });
+  const some = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  assert.equal(typeof P.pairStaff(none, some)[2].v, 'string');
+});
+
+test('staff: handoff lists productive hours per person, with zero-headcount teams left out', () => {
+  const r = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ role: 'Cleaner', headcount: 3, contractedHours: 38, leaveHours: 2, trainingHours: 3, travelHours: 5 }), row({ role: 'Empty' })] });
+  assert.deepEqual(r.handoff, [{ role: 'Cleaner', people: 3, productivePerPerson: 28 }]);
+});
+
 // ---- #40 customer response ---------------------------------------------------
 const cust = {
   enquiries: 0, sharePhone: 100, shareWeb: 0, shareEmail: 0, avgJobValue: 0, jobVariableCost: 0,
