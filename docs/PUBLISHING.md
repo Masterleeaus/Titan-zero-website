@@ -77,6 +77,8 @@ node scripts/site-gate.mjs check
 
 `scripts/tools-dom-smoke.cjs` runs the live calculator pages in jsdom: it submits forms, checks the break-even edge cases, validation messages and the V2 to V3 profile migration. `scripts/check-tool-a11y.mjs` checks labels, button names, one h1 and live regions on the calculator source pages. Both run in `.github/workflows/tools-regression.yml`.
 
+Browser run (#108): the `browser` job in `.github/workflows/tools-regression.yml` opens the 19 calculator pages in headless Chromium at phone (375 px) and desktop (1280 px) widths. It checks layout, keyboard use, focus after submit and on error, the print view, and screen-reader labels. Attach its `tools-browser-report` artifact to the release checklist. Known layout issues are listed in `KNOWN_LAYOUT` in `scripts/tools-browser-check.mjs`. An entry there stays visible in the report, and the page must be fixed before the entry is removed. Run it locally with `PLAYWRIGHT_DIR=<folder with playwright> node scripts/tools-browser-check.mjs`.
+
 Block a release if any command fails. The parity check fails when a `tools/<slug>/index.html` copy differs from `pages/tool-<slug>.html`, or when a calculator page loads `tools.js` before the engine.
 
 Manual QA before publishing a calculator change (desktop and phone width):
