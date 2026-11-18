@@ -855,58 +855,65 @@
   // ---------------------------------------------------------------- #32 job cost sheet
   // Costs are kept apart from price and GST. Mileage and equipment are entered
   // as totals, not as hidden rates. Contingency applies to direct cost only.
+  // All money is worked in whole cents, rounded per line, the same way the service
+  // pricing tool (assets/planner-calcs.js) works, so the two tools agree to the cent
+  // for the same inputs. Results are returned in dollars. Markup on materials is
+  // income inside the price, so it is shown but never added to cost.
+  const toCents = (amount) => roundCents(Number((Number(amount) * 100).toFixed(6)));
+  const ceilCents = (c) => Math.ceil(Number(c.toFixed(6)));
   function jobCostSheet(v) {
     const roles = Array.isArray(v.roles) ? v.roles : [];
     if (roles.length > 50) fail('A job can have at most 50 labour lines.');
-    let labour = 0;
+    let labourC = 0;
     for (const [index, role] of roles.entries()) {
       const hours = nonNeg(role.hours, 'Hours on labour line ' + (index + 1));
       const rate = nonNeg(role.rate, 'Rate on labour line ' + (index + 1));
-      labour += hours * rate;
+      labourC += toCents(hours * rate);
     }
-    const materialsCost = nonNeg(v.materials ?? 0, 'Materials purchased');
+    const materialsC = toCents(nonNeg(v.materials ?? 0, 'Materials purchased'));
     const markupPct = pct(v.materialMarkupPct ?? 0, 'Materials markup');
-    const equipment = nonNeg(v.equipment ?? 0, 'Equipment cost');
+    const equipmentC = toCents(nonNeg(v.equipment ?? 0, 'Equipment cost'));
     const km = nonNeg(v.km ?? 0, 'Kilometres driven');
     const kmRate = nonNeg(v.kmRate ?? 0, 'Cost per kilometre');
-    const travel = nonNeg(v.travel ?? 0, 'Other travel cost');
+    const mileageC = toCents(km * kmRate);
+    const travelC = toCents(nonNeg(v.travel ?? 0, 'Other travel cost'));
     const contingencyPct = pct(v.contingencyPct ?? 0, 'Contingency');
-    const overhead = nonNeg(v.overhead ?? 0, 'Allocated overhead');
-    const price = nonNeg(v.price ?? 0, 'Customer price excluding GST');
+    const overheadC = toCents(nonNeg(v.overhead ?? 0, 'Allocated overhead'));
+    const priceC = toCents(nonNeg(v.price ?? 0, 'Customer price excluding GST'));
     const targetMarginPct = pct(v.targetMarginPct ?? 30, 'Target margin');
 
-    const mileage = km * kmRate;
-    const materialsWithMarkup = materialsCost * (1 + markupPct / 100);
-    const directCost = labour + materialsCost + equipment + mileage + travel;
-    const contingency = directCost * contingencyPct / 100;
-    const totalCost = directCost + contingency + overhead;
-    const margin = price - totalCost;
-    const marginPct = price > 0 ? margin / price * 100 : null;
-    const targetPrice = targetMarginPct < 100 ? totalCost / (1 - targetMarginPct / 100) : null;
-    const materialMarkupValue = materialsWithMarkup - materialsCost;
-    const sellPriceMaterials = materialsWithMarkup;
+    const markupC = roundCents(materialsC * markupPct / 100);
+    const directC = labourC + materialsC + equipmentC + mileageC + travelC;
+    const contingencyC = roundCents(directC * contingencyPct / 100);
+    const totalC = directC + contingencyC + overheadC;
+    const marginC = priceC - totalC;
+    const marginPct = priceC > 0 ? marginC / priceC * 100 : null;
+    const targetC = targetMarginPct < 100 ? ceilCents(totalC * 100 / (100 - targetMarginPct)) : null;
+    const dollars = (c) => c / 100;
     return {
-      metric: totalCost,
-      labour,
-      directCost,
-      contingency,
-      overhead,
-      totalCost,
-      mileage,
-      materialMarkupValue,
-      sellPriceMaterials,
-      price,
-      margin,
+      metric: dollars(totalC),
+      labour: dollars(labourC),
+      directCost: dollars(directC),
+      contingency: dollars(contingencyC),
+      overhead: dollars(overheadC),
+      totalCost: dollars(totalC),
+      mileage: dollars(mileageC),
+      materialCost: dollars(materialsC),
+      materialMarkupValue: dollars(markupC),
+      sellPriceMaterials: dollars(materialsC + markupC),
+      price: dollars(priceC),
+      margin: dollars(marginC),
       marginPct,
-      targetPrice,
+      targetPrice: targetC === null ? null : dollars(targetC),
       rows: [
-        ['Labour', labour],
-        ['Materials (at cost)', materialsCost],
-        ['Equipment, mileage and other travel', equipment + mileage + travel],
-        ['Contingency', contingency],
-        ['Allocated overhead', overhead],
-        ['Total job cost', totalCost],
-        ['Margin at entered price (ex GST)', margin]
+        ['Labour', dollars(labourC)],
+        ['Materials (at cost)', dollars(materialsC)],
+        ['Equipment, mileage and other travel', dollars(equipmentC + mileageC + travelC)],
+        ['Contingency (on direct cost only)', dollars(contingencyC)],
+        ['Allocated overhead', dollars(overheadC)],
+        ['Total job cost (ex GST)', dollars(totalC)],
+        ['Markup on materials (income inside the price, not cost)', dollars(markupC)],
+        ['Margin at entered price (ex GST)', dollars(marginC)]
       ]
     };
   }
@@ -915,6 +922,24 @@
   // sheet use the same ex-GST price.
   function costToQuoteLine(cost, description) {
     return { description: String(description ?? 'Service').slice(0, 160), quantity: 1, unitPrice: Math.round(cost.price * 100) / 100 };
+  }
+
+  // Local hand-off from the job-cost sheet to the quote builder. It is stored on
+  // this device only and never placed in a URL. The line is the ex-GST price.
+  const QUOTE_TRANSFER_KEY = 'titanQuoteTransferV1';
+  function quoteTransferRecord(cost, description, now) {
+    if (!(cost.price > 0)) fail('Enter a customer price above zero before sending to the quote builder.');
+    return { format: 'titan-zero-quote-line', savedAt: now, line: costToQuoteLine(cost, description) };
+  }
+  // Accepts only a well-formed line. Anything else is ignored.
+  function readQuoteTransfer(raw) {
+    let d;
+    try { d = JSON.parse(raw); } catch (_) { return null; }
+    const line = d && d.format === 'titan-zero-quote-line' ? d.line : null;
+    if (!line || typeof line.description !== 'string') return null;
+    const unitPrice = Number(line.unitPrice);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return null;
+    return { description: line.description.slice(0, 160), unitPrice };
   }
 
   // ---------------------------------------------------------------- #33 checklist state
@@ -1013,6 +1038,9 @@
     saveQuoteRecord,
     jobCostSheet,
     costToQuoteLine,
+    quoteTransferRecord,
+    readQuoteTransfer,
+    QUOTE_TRANSFER_KEY,
     templateTasks,
     emptyChecklist,
     reconcileChecklist,
