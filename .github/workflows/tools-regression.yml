@@ -10,8 +10,11 @@ on:
       - 'scripts/check-tool-parity.mjs'
       - 'scripts/check-tool-a11y.mjs'
       - 'scripts/tools-dom-smoke.cjs'
-      - 'scripts/tools-browser-check.mjs'
+      - 'scripts/tools-browser-smoke.mjs'
+      - 'scripts/tools-release-check.mjs'
       - 'assets/styles.css'
+      - 'assets/site-data.js'
+      - 'scripts/tools-browser-check.mjs'
       - 'scripts/site-gate.mjs'
       - 'tests/**'
       - '.github/workflows/tools-regression.yml'
@@ -48,6 +51,21 @@ jobs:
         run: npm install --prefix "$RUNNER_TEMP/dom" jsdom@24 --no-audit --no-fund
       - name: DOM smoke test of the live calculators (#23, #42, #43)
         run: JSDOM_DIR="$RUNNER_TEMP/dom" node scripts/tools-dom-smoke.cjs
+  release-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install tool test helpers into a temporary folder (not repository dependencies)
+        run: npm install --prefix "$RUNNER_TEMP/tools-deps" jsdom@24 puppeteer-core@23 --no-audit --no-fund
+      - name: Business tools release check (#46)
+        env:
+          JSDOM_DIR: ${{ runner.temp }}/tools-deps
+          PUPPETEER_DIR: ${{ runner.temp }}/tools-deps
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/tools-release-check.mjs
   browser:
     runs-on: ubuntu-24.04
     steps:
