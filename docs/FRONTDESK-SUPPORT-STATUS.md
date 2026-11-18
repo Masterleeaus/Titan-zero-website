@@ -1,19 +1,19 @@
 # Front Desk documentation and status (issue #14)
 
-Status as of 2026-11-18. This file is the status record. Public routes for each topic are not yet published, so each row says where the answer is today.
+Status as of 2026-11-18. This file is the status record. All topics now live on one route, `/frontdesk-docs/`. Rows marked Open still need the plugin or billing work.
 
 Version data: `assets/upgrade-catalogue.json` (version 2026-11-18). That file is the source for upgrade names, routes, AI prices and status.
 
 | Topic | Where it is covered now | Public route | Status |
 |---|---|---|---|
-| Free installation | Front Desk hub, "Get the free plugin" and support link | none | Plugin is not on WordPress.org. Download comes from support. |
-| Plugin compatibility and upgrades | Not covered | none | Open. Needs verified version and WordPress requirements. |
-| Hosted AI Assistant opt-in | Hub privacy section and FAQ | `/frontdeskai/` | In development. Not available to buy. |
-| Agent Team permissions | Hub services table | `/frontdeskagent/` | In development. Not available to buy. |
-| Privacy and consent | Hub privacy section | `/terms/`, `/fair-use/` | Partly covered. No Front Desk-specific consent page. |
-| Billing cancellation | Not covered | none | Open. No billing is live. |
-| Troubleshooting | Hub FAQ only | none | Open. |
-| Service status | Not published | none | Open. No status page exists. |
+| Free installation | Documentation page and support link | `/frontdesk-docs/#install` | Plugin is not on WordPress.org. Download comes from support. |
+| Plugin compatibility and upgrades | Documentation page, no version matrix yet | `/frontdesk-docs/#compatibility` | Open. Needs verified version and WordPress requirements. |
+| Hosted AI Assistant opt-in | Documentation page | `/frontdesk-docs/#assistant` | In development. Not available to buy. |
+| Agent Team permissions | Documentation page | `/frontdesk-docs/#agent-team` | In development. Not available to buy. |
+| Privacy and consent | Documentation page | `/frontdesk-docs/#privacy` | Covered for the free plugin. Consent for hosted AI is described, not yet built. |
+| Billing cancellation | Documentation page | `/frontdesk-docs/#billing` | Open. No billing is live. |
+| Troubleshooting | Documentation page | `/frontdesk-docs/#troubleshooting` | Common checks only. |
+| Service status | Documentation page | `/frontdesk-docs/#status` | Open. No live status feed exists. |
 
 Rules for any page in this set:
 - Use the canonical support URL `/support/` for help.
