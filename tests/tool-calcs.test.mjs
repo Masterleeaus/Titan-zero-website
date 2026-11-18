@@ -397,6 +397,77 @@ test('quote: stored text is kept as data, not interpreted', () => {
   assert.equal(JSON.stringify(r.saved).includes('<img'), true, 'data stays inert until the UI sets textContent');
 });
 
+const quoteInput = (overrides = {}) => ({
+  reference: 'Q-100', business: 'Acme Clean', customer: 'Pat Example', service: 'Gutter clean',
+  scope: 'Clear gutters', exclusions: 'Roof repairs', terms: '14 days',
+  validDays: 14, taxMode: 'exclusive', taxRate: 10, discountPct: 5,
+  lines: [{ description: 'Labour', quantity: 1.5, unitPrice: 33.33 }, { description: 'Bag', quantity: 2, unitPrice: 9.99 }],
+  ...overrides
+});
+
+test('quote: restoring the saved version gives back the same totals', () => {
+  const saved = C.saveQuoteRecord({ quotes: [] }, quoteInput({ consentToStoreCustomer: true }), '2026-11-18T00:00:00Z');
+  const restored = C.restoreQuote(saved.saved);
+  const before = C.quoteTotals(quoteInput());
+  const after = C.quoteTotals({ ...restored, lines: restored.lines });
+  assert.equal(after.totalCents, before.totalCents);
+  assert.equal(after.gstCents, before.gstCents);
+  assert.equal(restored.scope, 'Clear gutters');
+  assert.equal(restored.customer, 'Pat Example');
+  assert.equal(restored.version, 1);
+});
+
+test('quote: each save keeps earlier versions, capped at the history limit', () => {
+  let store = { quotes: [] };
+  for (let i = 1; i <= 8; i++) {
+    store = { quotes: C.saveQuoteRecord(store, quoteInput({ service: 'Visit ' + i }), 't' + i).quotes };
+  }
+  const rec = store.quotes[0];
+  assert.equal(rec.version, 8);
+  assert.equal(rec.history.length, 5, 'only the five most recent earlier versions are kept');
+  assert.equal(rec.history[0].version, 7);
+  assert.equal(rec.history[0].service, 'Visit 7');
+  assert.equal(C.restoreQuote(rec, 6).service, 'Visit 6');
+});
+
+test('quote: an earlier version can be restored; an unknown version is refused', () => {
+  let store = { quotes: C.saveQuoteRecord({ quotes: [] }, quoteInput({ service: 'First' }), 't1').quotes };
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ service: 'Second' }), 't2').quotes };
+  assert.equal(C.restoreQuote(store.quotes[0], 1).service, 'First');
+  assert.throws(() => C.restoreQuote(store.quotes[0], 9), /not stored on this device/);
+});
+
+test('quote: withdrawing consent clears the customer name from every stored version', () => {
+  let store = { quotes: C.saveQuoteRecord({ quotes: [] }, quoteInput({ consentToStoreCustomer: true }), 't1').quotes };
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ consentToStoreCustomer: true }), 't2').quotes };
+  assert.equal(store.quotes[0].history[0].customer, 'Pat Example');
+  store = { quotes: C.saveQuoteRecord(store, quoteInput({ consentToStoreCustomer: false }), 't3').quotes };
+  assert.equal(store.quotes[0].customer, '');
+  assert.equal(store.quotes[0].history[0].customer, '');
+  assert.equal(store.quotes[0].history[1].customer, '');
+});
+
+test('quote: saving refuses values that cannot be totalled again', () => {
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ taxMode: 'vat' }), 't'), /Tax mode/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ discountPct: 101 }), 't'), /must be 0 to 100/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ taxRate: -5 }), 't'), /GST rate/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ lines: [{ description: 'x', quantity: -1, unitPrice: 1 }] }), 't'), /at least 0/);
+  assert.throws(() => C.saveQuoteRecord({ quotes: [] }, quoteInput({ validDays: 366 }), 't'), /must be 0 to 365/);
+});
+
+test('quote: validity runs from the saved date in whole days (UTC)', () => {
+  assert.equal(C.quoteValidUntil('2026-11-18T09:30:00Z', 14), '2026-12-02');
+  assert.equal(C.quoteValidUntil('2026-11-18T00:00:00Z', 0), null, 'no validity period');
+  assert.equal(C.quoteValidUntil('2026-12-25T00:00:00Z', 7), '2027-01-01', 'crosses a year end');
+  assert.throws(() => C.quoteValidUntil('not a date', 14), /not valid/);
+  assert.throws(() => C.quoteValidUntil('2026-11-18T00:00:00Z', -1), /must be 0 to 365/);
+});
+
+test('quote: restored text stays data, not markup', () => {
+  const saved = C.saveQuoteRecord({ quotes: [] }, quoteInput({ scope: '<b>x</b>' }), 't');
+  assert.equal(C.restoreQuote(saved.saved).scope, '<b>x</b>');
+});
+
 // ---- #32 job cost sheet
 test('job cost: several labour lines add up and costs stay separate from price', () => {
   const r = C.jobCostSheet({

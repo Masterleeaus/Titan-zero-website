@@ -408,36 +408,90 @@
   function quoteRecordId(reference) {
     return String(reference || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
   }
+  // Each saved version keeps its content. Up to QUOTE_HISTORY_LIMIT earlier versions
+  // are kept with the current one. The customer name is kept in any stored copy only
+  // while consent is recorded, so withdrawing consent clears it from every version.
+  const QUOTE_HISTORY_LIMIT = 5;
+  const QUOTE_VALID_MAX_DAYS = 365;
+  const QUOTE_TEXT_FIELDS = { business: 120, service: 160, scope: 1000, exclusions: 1000, terms: 1000 };
+
+  // Validates and copies the content fields of a quote. Throws on bad numbers, lines,
+  // tax mode or GST rate, so a stored quote can always be totalled again.
+  function quoteContent(quote, keepCustomer) {
+    quoteTotals(quote);
+    const content = {};
+    for (const [key, max] of Object.entries(QUOTE_TEXT_FIELDS)) content[key] = String(quote[key] ?? '').slice(0, max);
+    content.customer = keepCustomer ? String(quote.customer ?? '').slice(0, 120) : '';
+    content.validDays = num(quote.validDays ?? 14, 'Validity in days', 0, QUOTE_VALID_MAX_DAYS);
+    content.taxMode = quote.taxMode ?? 'none';
+    content.taxRate = pct(quote.taxRate ?? 10, 'GST rate');
+    content.discountPct = pct(quote.discountPct ?? 0, 'Discount');
+    content.lines = (quote.lines || []).map(line => ({
+      description: String(line.description ?? '').trim().slice(0, 160),
+      quantity: nonNeg(line.quantity ?? 0, 'Quantity'),
+      unitPrice: nonNeg(line.unitPrice ?? 0, 'Unit price')
+    }));
+    return content;
+  }
   function saveQuoteRecord(store, quote, now) {
     const ref = quoteRecordId(quote.reference);
     if (!ref) fail('Enter a quote reference before saving.');
+    const consent = Boolean(quote.consentToStoreCustomer);
     const list = Array.isArray(store.quotes) ? store.quotes.slice() : [];
     const existing = list.find(item => item.reference === ref);
     const version = existing ? existing.version + 1 : 1;
+    const content = quoteContent(quote, consent);
+    const prior = existing
+      ? [
+          { version: existing.version, savedAt: existing.savedAt, ...quoteContent(existing, consent) },
+          ...(Array.isArray(existing.history) ? existing.history.map(h => ({ ...h, customer: consent ? h.customer || '' : '' })) : [])
+        ].slice(0, QUOTE_HISTORY_LIMIT)
+      : [];
     const record = {
       reference: ref,
       version,
       savedAt: now,
-      validDays: nonNeg(quote.validDays ?? 14, 'Validity in days'),
-      business: String(quote.business ?? '').slice(0, 120),
-      customer: quote.consentToStoreCustomer ? String(quote.customer ?? '').slice(0, 120) : '',
-      consentToStoreCustomer: Boolean(quote.consentToStoreCustomer),
-      service: String(quote.service ?? '').slice(0, 160),
-      scope: String(quote.scope ?? '').slice(0, 1000),
-      exclusions: String(quote.exclusions ?? '').slice(0, 1000),
-      terms: String(quote.terms ?? '').slice(0, 1000),
-      taxMode: quote.taxMode ?? 'none',
-      taxRate: quote.taxRate ?? 10,
-      discountPct: quote.discountPct ?? 0,
-      lines: (quote.lines || []).map(line => ({
-        description: String(line.description ?? '').slice(0, 160),
-        quantity: Number(line.quantity) || 0,
-        unitPrice: Number(line.unitPrice) || 0
-      }))
+      consentToStoreCustomer: consent,
+      ...content,
+      history: prior
     };
     const others = list.filter(item => item.reference !== ref);
     const next = [record, ...others].slice(0, QUOTE_LIMIT);
     return { quotes: next, saved: record, history: existing ? existing.version : 0 };
+  }
+
+  // Returns the form values for the current or an earlier stored version.
+  function restoreQuote(record, version) {
+    const src = version === undefined || version === record.version
+      ? record
+      : (Array.isArray(record.history) ? record.history : []).find(h => h.version === version);
+    if (!src) fail('That version is not stored on this device.');
+    return {
+      reference: record.reference,
+      version: src.version,
+      business: src.business || '',
+      customer: src.customer || '',
+      consentToStoreCustomer: Boolean(record.consentToStoreCustomer),
+      service: src.service || '',
+      scope: src.scope || '',
+      exclusions: src.exclusions || '',
+      terms: src.terms || '',
+      validDays: src.validDays ?? 14,
+      taxMode: src.taxMode || 'none',
+      taxRate: src.taxRate ?? 10,
+      discountPct: src.discountPct ?? 0,
+      lines: (src.lines || []).map(line => ({ ...line }))
+    };
+  }
+
+  // Validity runs from the saved date of the version, in UTC calendar days.
+  // Returns null when no validity period is set.
+  function quoteValidUntil(savedAt, validDays) {
+    const days = num(validDays ?? 0, 'Validity in days', 0, QUOTE_VALID_MAX_DAYS);
+    if (days === 0) return null;
+    const start = Date.parse(savedAt);
+    if (!Number.isFinite(start)) fail('The saved date is not valid.');
+    return new Date(start + days * 86400000).toISOString().slice(0, 10);
   }
 
   // ---------------------------------------------------------------- #32 job cost sheet
@@ -599,6 +653,8 @@
     quoteTotals,
     quoteRecordId,
     saveQuoteRecord,
+    restoreQuote,
+    quoteValidUntil,
     jobCostSheet,
     costToQuoteLine,
     templateTasks,
