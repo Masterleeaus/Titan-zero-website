@@ -406,6 +406,10 @@
           208
         ],
         [
+          "Billable hours/month (after leave, non-billable time and skill coverage)",
+          "520.0 hours"
+        ],
+        [
           "Bookable jobs/month (after buffers, leave, cancellations)",
           208
         ],
@@ -429,6 +433,10 @@
         [
           "Theoretical jobs/month (hours only)",
           346
+        ],
+        [
+          "Billable hours/month (after leave, non-billable time and skill coverage)",
+          "435.6 hours"
         ],
         [
           "Bookable jobs/month (after buffers, leave, cancellations)",

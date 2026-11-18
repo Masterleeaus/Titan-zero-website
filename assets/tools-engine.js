@@ -613,10 +613,12 @@
     const days = num(v.daysPerWeek ?? 5, 'Available days each week', 0.5, 7);
     const leave = nonNeg(v.leaveDays ?? 0, 'Leave days per worker each year');
     if (leave > WEEKS_PER_YEAR * days) fail('Leave days cannot exceed the available days in a year.');
+    // Skill coverage: share of field hours held by workers qualified for this job type (100 = everyone).
+    const skill = pct(v.skillPct ?? 100, 'Share of hours with the skill for this job type');
 
     const theoretical = workers * hours * WEEKS_PER_MONTH / duration;
     const availableShare = (WEEKS_PER_YEAR * days - leave) / (WEEKS_PER_YEAR * days);
-    const billableHours = workers * hours * (1 - nonbill / 100) * availableShare * WEEKS_PER_MONTH;
+    const billableHours = workers * hours * (1 - nonbill / 100) * availableShare * (skill / 100) * WEEKS_PER_MONTH;
     const perJobHours = duration + travelMin / 60;
     const bookable = billableHours * (1 - cancel / 100) / perJobHours;
     const bookableJobs = Math.floor(bookable);
@@ -630,6 +632,7 @@
       perJobHours,
       rows: [
         ['Theoretical jobs/month (hours only)', Math.floor(theoretical)],
+        ['Billable hours/month (after leave, non-billable time and skill coverage)', billableHours.toFixed(1) + ' hours'],
         ['Bookable jobs/month (after buffers, leave, cancellations)', bookableJobs],
         ['Spare (+) or over (-) against current volume', spare]
       ]
