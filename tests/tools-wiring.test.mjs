@@ -8,7 +8,7 @@ import { test } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const E = require('../assets/tools-engine.js');
-const C = require('../assets/tool-calcs.js');
+const C = E.formulas;
 const source = readFileSync(new URL('../assets/tools.js', import.meta.url), 'utf8');
 // The engine rounds money to whole cents (half up), so a headline may differ from the unrounded live value by at most half a cent.
 const HALF_CENT = 0.005 + 1e-9;

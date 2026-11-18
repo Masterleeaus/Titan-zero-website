@@ -15,7 +15,7 @@ const storageKey='titanBusinessToolProfileV3';
 const industryById=Object.fromEntries(data.industries.map((item)=>[item.id,item]));
 const verticalOptions=data.industries;
 const query=new URLSearchParams(location.search);
-const calcs=()=>globalThis.TitanToolCalcs;
+const calcs=()=>engine.formulas;
 const rowLabelIsCount=(label)=>/\bjobs\b|enquir|\bspare\b|\bover\b/i.test(label);
 const rowText=(label,value)=>typeof value==='number'?(rowLabelIsCount(label)?number(value):money(value)):String(value);
 const defaults={
@@ -205,7 +205,7 @@ draw();
 document.querySelectorAll('[data-tools-app]').forEach(initializeCalculator);
 const QUOTE_TAX_TEXT={none:'No GST applied on this quote.',exclusive:'Prices exclude GST. GST is added on top.',inclusive:'Prices include GST. GST is shown inside the total.'};
 function initializeQuoteBuilder(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const form=root.querySelector('[data-quote-form]'),lines=root.querySelector('[data-quote-lines]'),output=root.querySelector('[data-quote-result]');
 if(!form||!lines||!output||!calc)return;
 const status=root.querySelector('[data-quote-status]'),savedSelect=root.querySelector('[data-quote-saved]');
@@ -316,7 +316,7 @@ form.addEventListener('submit',event=>{event.preventDefault();render();});
 addLine('Service',1,0);addLine();render();refreshSaved('');
 }
 function initializeJobCost(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const form=root.querySelector('[data-job-cost-form]'),output=root.querySelector('[data-job-cost-result]'),roles=root.querySelector('[data-job-roles]');
 if(!form||!output||!roles||!calc)return;
 const f=(name)=>form.elements.namedItem(name);
@@ -356,7 +356,7 @@ const TEMPLATE_REVISION=1;
 const CHECKLIST_DRAFT_KEY='titanChecklistDraftV1';
 const taskLists=data.checklists||{};
 function initializeChecklist(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const select=root.querySelector('[data-checklist-vertical]'),list=root.querySelector('[data-generated-checklist]');
 if(!select||!list||!calc)return;
 const title=root.querySelector('[data-checklist-title]'),job=root.querySelector('[data-checklist-job]'),jobLabel=root.querySelector('[data-checklist-job-label]');

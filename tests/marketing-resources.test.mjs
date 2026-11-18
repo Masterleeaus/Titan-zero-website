@@ -34,3 +34,34 @@ test('resources hub and sitemap list the review reply guide', () => {
   assert.match(read('pages/resources.html'), /href="\/resources\/google-review-replies\/"/);
   assert.match(read('sitemap.xml'), /resources\/google-review-replies\//);
 });
+
+test('enquiry guide explains response tracking and publishes no response promise (issue 81)', () => {
+  const t = text(read('pages/article-handling-service-enquiries.html'));
+  assert.match(t, /Set a response promise only when you can keep it/);
+  assert.match(t, /How the business tracks response time/);
+  assert.match(t, /What counts as a first reply/);
+  assert.match(t, /Pending legal review/);
+});
+
+test('no published page makes a fixed one-hour reply promise (issue 81)', async () => {
+  const { readdirSync } = await import('node:fs');
+  const promise = /\b(we|we'll|we will|our team will)\b[^.<]{0,40}\b(reply|respond|answer|call back)\w*\b[^.<]{0,30}\bwithin (one|1|an) (business )?hour\b/i;
+  for (const f of readdirSync(join(ROOT, 'pages'))) {
+    if (!f.endsWith('.html')) continue;
+    assert.doesNotMatch(text(read(join('pages', f))), promise, `${f} makes a response promise`);
+  }
+});
+
+test('quote follow-up cadence has two steps, stop rules and a pending legal review note (issue 84)', () => {
+  const t = text(read('pages/article-quote-follow-up.html'));
+  assert.match(t, /Two follow-ups, then stop/);
+  assert.match(t, /not now/);
+  assert.match(t, /Pending legal review/);
+  assert.match(t, /has not consented to receive marketing messages/);
+  assert.match(t, /honoured within five working days/);
+});
+
+test('invoice follow-up guide links to the quote follow-up guide (issue 84)', () => {
+  assert.match(read('pages/article-invoice-follow-up.html'), /href="\/resources\/quote-follow-up\/"/);
+  assert.match(read('sitemap.xml'), /resources\/quote-follow-up\//);
+});

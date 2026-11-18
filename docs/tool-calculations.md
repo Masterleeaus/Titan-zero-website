@@ -1,6 +1,6 @@
 # Tool calculations (issues #24-#33)
 
-Pure calculation code lives in `assets/tool-calcs.js` and is tested by `tests/tool-calcs.test.mjs`.
+Pure calculation code lives in `assets/tools-engine.js` (`engine.formulas`, #104) and is tested by `tests/tool-calcs.test.mjs` and `tests/tools-formulas-fixtures.test.mjs`.
 The tool pages (`pages/tool-*.html`) and their UI code (`assets/tools.js`) call it. Nothing is sent to a server.
 All rates, shares and costs are entered by the user. No statutory rate, price, ROI or savings figure is built in.
 
