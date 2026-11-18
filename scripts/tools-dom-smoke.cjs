@@ -64,6 +64,15 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('profit discount plus write-off above 100% refused', /cannot exceed 100%/.test(over.result), over.result.slice(0, 160));
 }
 
+// 0b. Capacity planner (#27): skill coverage halves bookable jobs; zero job duration is refused.
+{
+  const half = run('pages/tool-capacity-planner.html', { fields: { workers: 4, hours: 30, duration: 2.5, currentJobs: 150, skillPct: 50 } });
+  check('capacity 50% skill coverage gives 104 bookable jobs', /104 jobs\/month/.test(half.result), half.result.slice(0, 160));
+  const zero = run('pages/tool-capacity-planner.html', { fields: { workers: 4, hours: 30, duration: 0, currentJobs: 150 } });
+  // Native validation (min 0.1 hours) stops the submit, so no bookable figure is shown.
+  check('capacity zero duration gives no bookable figure', !/jobs\/month/.test(zero.result), zero.result.slice(0, 160));
+}
+
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
 {
   const r = run('pages/tool-break-even.html', { fields: { fixed: 1, price: 100.1, variable: 100 } });

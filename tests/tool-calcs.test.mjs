@@ -214,6 +214,31 @@ test('capacity: default inputs match the original theoretical jobs figure', () =
   assert.equal(r.bookableJobs, r.theoreticalJobs);
 });
 
+test('capacity: skill coverage limits billable hours to the share of qualified hours', () => {
+  const all = C.capacityPlanner({ workers: 4, hours: 30, duration: 2.5, currentJobs: 0 });
+  const half = C.capacityPlanner({ workers: 4, hours: 30, duration: 2.5, currentJobs: 0, skillPct: 50 });
+  close(half.billableHours, all.billableHours / 2);
+  assert.equal(all.bookableJobs, 208);
+  assert.equal(half.bookableJobs, 104);
+});
+
+test('capacity: no qualified hours gives zero bookable jobs, not an error', () => {
+  const r = C.capacityPlanner({ workers: 4, hours: 30, duration: 2.5, currentJobs: 10, skillPct: 0 });
+  assert.equal(r.bookableJobs, 0);
+  assert.equal(r.spare, -10);
+});
+
+test('capacity: skill coverage above 100% or negative is refused', () => {
+  assert.throws(() => C.capacityPlanner({ workers: 1, hours: 30, duration: 2, currentJobs: 0, skillPct: 101 }), /must be 0 to 100/);
+  assert.throws(() => C.capacityPlanner({ workers: 1, hours: 30, duration: 2, currentJobs: 0, skillPct: -1 }), /must be 0 to 100/);
+});
+
+test('capacity: daylight-saving weeks are not adjusted, so the entered hours are used as they are', () => {
+  const r = C.capacityPlanner({ workers: 1, hours: 30, duration: 2.5, currentJobs: 0 });
+  close(r.billableHours, 30 * 52 / 12);
+  close(C.capacityPlanner({ workers: 1, hours: 29, duration: 2.5, currentJobs: 0 }).billableHours, 29 * 52 / 12);
+});
+
 test('capacity: leave, non-billable time, buffers and cancellations reduce bookable jobs', () => {
   const r = C.capacityPlanner({
     workers: 3, hours: 40, duration: 2, currentJobs: 100,
