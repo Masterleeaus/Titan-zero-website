@@ -49,7 +49,11 @@ test('an in-page link with no matching id fails the gate', () => {
   const dir = copyRepo();
   try {
     const page = join(dir, 'pages/frontdesk.html');
-    writeFileSync(page, readFileSync(page, 'utf8').replace('href="#services"', 'href="#no-such-section"'));
+    // Pick a real in-page link on the hub, so the test does not depend on one fixed anchor name.
+    const src = readFileSync(page, 'utf8');
+    const anchor = /href="#([a-z][\w-]*)"/.exec(src);
+    assert.ok(anchor, 'the Front Desk hub should contain an in-page link to break');
+    writeFileSync(page, src.replace(`href="#${anchor[1]}"`, 'href="#no-such-section"'));
     // Keep the published copy in step so only the anchor rule fires.
     writeFileSync(join(dir, 'frontdesk/index.html'), readFileSync(page));
     const { problems } = check(dir);
