@@ -8,6 +8,9 @@
 // earlier versions (empty for a first save).
 // The capacity/default and capacity/non-default entries were re-recorded for #27: skill coverage
 // (100% by default) and a billable-hours row were added. Only the rows changed; every number is the same.
+// The calls/default and calls/non-default entries were re-recorded for #28: recovery conversion, SMS and
+// email channel costs and extra rows were added. The inputs in live-formula-cases.mjs map the old scenario
+// onto the new fields, and the old headline numbers (opportunity, recoverable, messaging cost, net) are unchanged.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

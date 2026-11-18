@@ -73,6 +73,17 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('capacity zero duration gives no bookable figure', !/jobs\/month/.test(zero.result), zero.result.slice(0, 160));
 }
 
+// 0c. Missed enquiries (#28): default opportunity is unchanged; recovery above likely conversion and
+// SMS plus email above 100% are refused.
+{
+  const base = run('pages/tool-missed-calls.html', { fields: { calls: 120, missed: 12, convert: 30, jobValue: 350 } });
+  check('missed default opportunity is A$1,512', /A\$1,512/.test(base.result), base.result.slice(0, 160));
+  const recovery = run('pages/tool-missed-calls.html', { fields: { calls: 120, missed: 12, convert: 30, jobValue: 350, recoveryPct: 50 } });
+  check('missed recovery above likely conversion refused', /cannot be higher than likely conversion/.test(recovery.result), recovery.result.slice(0, 160));
+  const channels = run('pages/tool-missed-calls.html', { fields: { calls: 120, missed: 12, convert: 30, jobValue: 350, smsPct: 70, emailPct: 40 } });
+  check('missed SMS plus email above 100% refused', /cannot add up to more than 100%/.test(channels.result), channels.result.slice(0, 160));
+}
+
 // 1. Break-even: a one-cent contribution with A$1 fixed costs needs 10 jobs, not 11 (#23).
 {
   const r = run('pages/tool-break-even.html', { fields: { fixed: 1, price: 100.1, variable: 100 } });

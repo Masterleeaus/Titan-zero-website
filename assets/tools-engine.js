@@ -640,35 +640,53 @@
   }
 
   // ---------------------------------------------------------------- #28 missed enquiries
-  // "Opportunity" keeps the original definition. "Recoverable" applies the share
-  // of missed enquiries you can realistically reach. Nothing is guaranteed.
+  // Opportunity = missed x likely conversion x value (the original definition, unchanged).
+  // Recoverable = missed x follow-up reach x recovery conversion x value. Recovery conversion
+  // cannot exceed likely conversion, so recoverable never exceeds opportunity.
+  // Messaging cost = follow-ups x weighted channel cost (SMS and email shares; phone callbacks
+  // are staff time and are not costed here). Nothing is guaranteed.
   function missedEnquiry(v) {
     const enquiries = nonNeg(v.calls, 'Calls/enquiries per month');
     const missedPct = pct(v.missed, 'Missed/unanswered rate');
     const convert = pct(v.convert, 'Likely conversion if answered');
     const jobValue = nonNeg(v.jobValue, 'Average job value');
     const reach = pct(v.reachPct ?? 0, 'Share of missed enquiries you can follow up');
+    const recovery = pct(v.recoveryPct ?? convert, 'Recovery conversion');
+    if (recovery > convert) fail('Recovery conversion cannot be higher than likely conversion if answered.');
+    const smsPct = pct(v.smsPct ?? 0, 'Share of follow-ups sent by SMS');
+    const emailPct = pct(v.emailPct ?? 0, 'Share of follow-ups sent by email');
+    if (smsPct + emailPct > 100) fail('SMS and email shares of follow-ups cannot add up to more than 100%.');
+    const smsCost = nonNeg(v.smsCost ?? 0, 'Cost per SMS');
+    const emailCost = nonNeg(v.emailCost ?? 0, 'Cost per email');
     const contribPct = pct(v.contribPct ?? 100, 'Contribution margin');
-    const commsPerEnquiry = nonNeg(v.commsPerEnquiry ?? 0, 'External messaging cost per follow-up');
     const missed = enquiries * missedPct / 100;
     const opportunity = missed * convert / 100 * jobValue;
-    const recoverable = opportunity * reach / 100;
+    const followedUp = missed * reach / 100;
+    const recoveredJobs = followedUp * recovery / 100;
+    const recoverable = recoveredJobs * jobValue;
     const recoverableContribution = recoverable * contribPct / 100;
-    const comms = missed * reach / 100 * commsPerEnquiry;
+    // Weighted average of the channel costs per follow-up; the remainder is phone callbacks (not costed).
+    const blendedCostPerFollowUp = (smsPct * smsCost + emailPct * emailCost) / 100;
+    const comms = followedUp * blendedCostPerFollowUp;
     return {
       metric: opportunity,
       missedEnquiries: missed,
       opportunity,
+      followedUp,
+      recoveredJobs,
       recoverable,
       recoverableContribution,
+      blendedCostPerFollowUp,
       commsCost: comms,
       netRecoveryContribution: recoverableContribution - comms,
       rows: [
         ['Missed enquiries per month', missed.toFixed(1)],
-        ['Opportunity exposed (before follow-up)', opportunity],
-        ['Recoverable if followed up (assumed share)', recoverable],
-        ['Contribution on the recoverable share', recoverableContribution],
-        ['External messaging cost', comms],
+        ['Opportunity exposed before follow-up (missed x likely conversion x value)', opportunity],
+        ['Missed enquiries followed up (assumed reach)', followedUp.toFixed(1)],
+        ['Recovered bookings (assumed recovery conversion)', recoveredJobs.toFixed(1)],
+        ['Recoverable value (assumed, not guaranteed)', recoverable],
+        ['Contribution on the recoverable value', recoverableContribution],
+        ['External messaging cost (weighted by channel)', comms],
         ['Net contribution (assumed, not guaranteed)', recoverableContribution - comms]
       ]
     };
