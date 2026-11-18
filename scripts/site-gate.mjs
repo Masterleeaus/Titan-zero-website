@@ -173,6 +173,11 @@ export function check(root = ROOT) {
   for (const file of listHtml(root)) {
     const rel = file.slice(root.length + 1);
     const html = readFileSync(file, 'utf8');
+    const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+    for (const m of html.matchAll(/\bhref="#([^"]+)"/g)) {
+      // Keyboard and skip-link targets: an in-page anchor must name an id on the same page.
+      if (!ids.has(m[1])) fail(`${rel}: in-page link #${m[1]} has no matching id`);
+    }
     for (const m of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
       const target = m[1];
       if (!target.startsWith('/') || target.startsWith('//')) continue;
