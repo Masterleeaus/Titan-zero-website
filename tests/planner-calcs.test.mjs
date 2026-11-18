@@ -63,6 +63,38 @@ test('service pricing: GST adds 10% to the including-GST column, rounded to cent
   assert.equal(row[2].v, 0.06); // GST on 5 cents is 0.5 cent, rounded to 1 cent, so 6 cents
 });
 
+test('service pricing (#34): extreme but valid inputs stay finite and in order', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 10000, labourRate: 1000000, materials: 1000000, travel: 1000000, equipment: 1000000, overhead: 1000000, contingencyPct: 100, targetMarginPct: 99.99, discountPct: 99.99 });
+  assert.equal(r.ok, true);
+  const cost = summary(r, 'True unit cost, excluding GST').v;
+  const target = summary(r, 'Recommended price at target margin').v;
+  assert.ok(Number.isFinite(cost) && Number.isFinite(target), 'no Infinity or NaN');
+  assert.ok(target >= cost, 'target price is never below cost');
+  const list = cell(r, 'List price before discount')[1].v;
+  const after = cell(r, 'Price after discount')[1].v;
+  assert.ok(after <= list && after > 0, 'discounted price stays below list and above zero');
+});
+
+test('service pricing (#34): contingency applies to direct cost only, and overhead is added once', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, materials: 50, contingencyPct: 100, overhead: 25 });
+  // direct = 150, contingency = 150, overhead = 25, unit cost = 325
+  assert.equal(summary(r, 'True unit cost, excluding GST').v, 325);
+});
+
+test('service pricing (#34): a discount of 99.99% still gives a list price that is rounded to the cent', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, targetMarginPct: 20, discountPct: 99.99 });
+  const list = cell(r, 'List price before discount')[1].v;
+  assert.equal(Math.round(list * 100), list * 100, 'list price is whole cents');
+  assert.ok(list > 0);
+});
+
+test('service pricing (#34): GST inclusive column is the ex-GST figure plus 10%, to the cent, with no drift on odd cents', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 0.01, gst: 'yes' });
+  const floor = cell(r, 'Floor price (covers cost, no margin)');
+  assert.equal(floor[1].v, 0.01);
+  assert.equal(floor[2].v, 0.01, '10% of one cent rounds to zero cents');
+});
+
 test('service pricing: rejects money with more than two decimals and negative values', () => {
   assert.equal(P.servicePricing({ ...basePricing, labourRate: 45.555 }).ok, false);
   assert.equal(P.servicePricing({ ...basePricing, materials: -1 }).ok, false);
