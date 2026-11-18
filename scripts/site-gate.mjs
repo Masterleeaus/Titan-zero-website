@@ -43,6 +43,49 @@ export function pageEntries(root = ROOT) {
     });
 }
 
+// Free plugin copy (issue #69): Front Desk and plugin pages must not describe the free plugin as a
+// trial or sandbox, because WordPress.org treats capped or trial-style free plugins as trialware.
+// Returns one problem per trial-framing word found in visible text on those pages.
+export function freePluginCopyProblems(html, file = 'page') {
+  if (!PLUGIN_PRICE_PAGE.test(file)) return [];
+  const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+  const problems = [];
+  for (const m of text.matchAll(/\b(trial|trials|trialware|sandbox)\b/gi)) {
+    problems.push(`${file}: free plugin copy must not describe a trial or sandbox ("${m[1]}")`);
+  }
+  return problems;
+}
+
+// Structured data (issue #7): every JSON-LD block must parse, must not claim ratings or reviews
+// (no testimonials or ratings are approved), and Front Desk / plugin pages may only name approved prices.
+export function jsonLdProblems(html, file = 'page') {
+  const problems = [];
+  for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)) {
+    let data;
+    try {
+      data = JSON.parse(m[1]);
+    } catch (err) {
+      problems.push(`${file}: JSON-LD does not parse (${err.message})`);
+      continue;
+    }
+    const walk = (node) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== 'object') return;
+      for (const [key, value] of Object.entries(node)) {
+        if (key === 'aggregateRating' || key === 'review' || key === 'reviews') {
+          problems.push(`${file}: JSON-LD must not contain ${key} (no approved ratings or testimonials)`);
+        }
+        if (key === 'price' && PLUGIN_PRICE_PAGE.test(file) && !APPROVED_AMOUNTS.has(Number(value))) {
+          problems.push(`${file}: JSON-LD price ${value} is not an approved amount`);
+        }
+        walk(value);
+      }
+    };
+    walk(data);
+  }
+  return problems;
+}
+
 function sync(root) {
   const entries = pageEntries(root);
   for (const e of entries) {
@@ -119,10 +162,14 @@ export function check(root = ROOT) {
     for (let i = 1; i < levels.length; i++) {
       if (levels[i] > levels[i - 1] + 1) fail(`${p.file}: heading jumps from h${levels[i - 1]} to h${levels[i]}`);
     }
+    // 3b. Structured data parses and makes no unapproved rating, review or price claims.
+    for (const problem of jsonLdProblems(html, p.file)) fail(problem);
     // 4. Images need alt text.
     for (const img of html.match(/<img\b[^>]*>/gi) || []) {
       if (!/\balt=/.test(img)) fail(`${p.file}: image without alt: ${img.slice(0, 80)}`);
     }
+    // 6b. Free plugin copy must not read as a trial or sandbox (issue #69).
+    for (const problem of freePluginCopyProblems(html, p.file)) fail(problem);
     // 6. Plugin, Front Desk and At.Work app pages may only show approved A$ amounts.
     if (PLUGIN_PRICE_PAGE.test(p.file)) {
       for (const m of html.matchAll(/A\$(\d+)/g)) {
@@ -130,6 +177,10 @@ export function check(root = ROOT) {
       }
     }
   }
+
+  // 4b. The Front Desk hub keeps the no-licence-key promise visible (issue #69).
+  const hubText = read('pages/frontdesk.html').replace(/<[^>]+>/g, ' ');
+  if (!/no licence key/i.test(hubText)) fail('pages/frontdesk.html must keep the "no licence key" promise visible');
 
   // 5. Sitemap: every indexable page listed, every entry resolves to a file.
   const sitemap = read('sitemap.xml');
@@ -143,6 +194,11 @@ export function check(root = ROOT) {
   for (const file of listHtml(root)) {
     const rel = file.slice(root.length + 1);
     const html = readFileSync(file, 'utf8');
+    const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+    for (const m of html.matchAll(/\bhref="#([^"]+)"/g)) {
+      // Keyboard and skip-link targets: an in-page anchor must name an id on the same page.
+      if (!ids.has(m[1])) fail(`${rel}: in-page link #${m[1]} has no matching id`);
+    }
     for (const m of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
       const target = m[1];
       if (!target.startsWith('/') || target.startsWith('//')) continue;

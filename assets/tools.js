@@ -1,7 +1,11 @@
 (()=>{
 'use strict';
+// Shared, tested engine (assets/tools-engine.js): validation, cents arithmetic and profile migration.
+// Calculator pages load it before this file (scripts/check-tool-parity.mjs enforces the order).
+// Other pages load this file for site scripts only, so without the engine it does nothing.
+const engine=globalThis.TitanToolsEngine;
 const data=window.TITAN_SITE_CONTENT;
-if(!data)return;
+if(!data||!engine)return;
 const rootUrl=new URL(document.body.dataset.siteRoot||'/',document.URL);
 const pageUrl=(path)=>new URL(String(path).replace(/^\/+/,''),rootUrl).href;
 const money=(n)=>'A$'+new Intl.NumberFormat('en-AU',{maximumFractionDigits:2}).format(Number(n)||0);
@@ -11,42 +15,43 @@ const storageKey='titanBusinessToolProfileV3';
 const industryById=Object.fromEntries(data.industries.map((item)=>[item.id,item]));
 const verticalOptions=data.industries;
 const query=new URLSearchParams(location.search);
-const calcs=()=>globalThis.TitanToolCalcs;
+const calcs=()=>engine.formulas;
 const rowLabelIsCount=(label)=>/\bjobs\b|enquir|\bspare\b|\bover\b/i.test(label);
 const rowText=(label,value)=>typeof value==='number'?(rowLabelIsCount(label)?number(value):money(value)):String(value);
 const defaults={
-admin:{title:'Admin cost',fields:[['adminHours','Admin hours each week',10,'hours/week'],['adminRate','Loaded hourly cost',45,'A$/hour'],['reclaimPct','Share of admin time you could reclaim',25,'% (your estimate)',0,100],['cashPct','Share of recovered time turned into cash',0,'% (0 = none counted)',0,100],['reinvestPct','Share of recovered time reinvested',0,'% (not cash)',0,100]],calc:v=>{const r=calcs().adminCost(v);return{metric:r.metric,format:'currency',label:'Estimated monthly admin labour value',math:`${v.adminHours} hrs/week × 52 ÷ 12 × ${money(v.adminRate)}/hr`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Recovered capacity: ${number(r.recoveredHoursPerMonth,1)} hours/month, valued at ${money(r.recoveredValue)} at your loaded rate. Recovered time is not cash unless you enter a cash share.`,'Cash is counted only for the share you enter. Reinvested time is shown separately.','The reclaim, cash and reinvestment shares are your own estimates, not benchmarks.']}}},
-hire:{title:'Should I hire?',fields:[['salary','Annual salary',65000,'A$/year'],['superPct','Super or retirement contribution',0,'% of salary (your figure)',0,100],['leavePct','Leave loading',0,'% of salary (your figure)',0,100],['oncost','Other on-costs (insurance, allowances, employer taxes)',18,'% of salary (your figure)',0,100],['paidHours','Paid hours each week',38,'hours/week'],['utilisationPct','Billable share of paid hours',80,'% (roster utilisation)',0,100],['margin','Average contribution per job',180,'A$/job'],['jobHours','Average job duration',2.5,'hours/job',0.1],['contractorRate','Contractor hourly rate (optional comparison)',0,'A$/hour']],calc:v=>{const r=calcs().hiringCost(v);return{metric:r.monthlyCost,format:'currency',label:'Estimated monthly employment cost',math:`${money(v.salary)}/year × (1 + ${r.onCostPct}%) ÷ 12`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[r.jobsNeeded===null?'Enter a positive contribution per job to estimate the job count.':`At ${money(v.margin)} contribution per job, about ${number(r.jobsNeeded)} additional jobs/month would cover this cost (${number(r.jobsExact,1)} exact).`,'Super, leave, insurance and employment rules are the figures you enter, not statutory facts. This is a cost threshold, not a recommendation to hire.']}}},
-breakeven:{title:'Break-even',fields:[['fixed','Monthly fixed costs',12000,'A$/month'],['price','Average job revenue',450,'A$/job'],['variable','Average variable cost',180,'A$/job']],calc:v=>{const contribution=v.price-v.variable;const possible=v.fixed===0||contribution>0;const jobs=v.fixed===0?0:possible?Math.ceil(v.fixed/contribution):null;return{metric:jobs,format:possible?'count':'unavailable',suffix:' jobs/month',label:possible?'Jobs per month to cover fixed costs':'No break-even job count at these assumptions',math:v.fixed===0?'No fixed costs entered (0 jobs required).':contribution<=0?'No finite solution: the contribution per job is zero or negative.':`${money(v.fixed)} ÷ (${money(v.price)} − ${money(v.variable)})`,notes:[v.fixed===0?'Fixed costs are zero; this is not a claim that the service is profitable.':contribution>0?`Contribution per job: ${money(contribution)}.`:'Average job revenue must exceed variable cost before a break-even job count can be calculated.','Tax, financing and owner drawings are not included unless you put them into fixed costs.']}}},
-profit:{title:'Job profitability',fields:[['jobRevenue','Job revenue',650,'A$'],['taxMode','Is the revenue GST-inclusive?','exclusive','',undefined,undefined,[['exclusive','No, excludes GST'],['inclusive','Yes, includes GST']]],['taxRate','GST rate',10,'%',0,100],['labour','Labour cost',220,'A$'],['materials','Materials',110,'A$'],['travel','Travel/other direct cost',45,'A$'],['overhead','Overhead allocated to this job',0,'A$ (your allocation)'],['discountPct','Discount or write-off',0,'% of revenue',0,100],['targetMarginPct','Target gross margin',30,'%',0,99.9]],calc:v=>{const r=calcs().jobProfitability(v);return{metric:r.contribution,format:'currency',label:'Contribution before overhead',math:`${money(r.netRevenue)} net revenue − ${money(r.directCost)} direct cost`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Gross margin: ${r.grossMarginPct===null?'not available (no revenue)':r.grossMarginPct.toFixed(1)+'% of net revenue'}. Markup on direct cost: ${r.markupPct===null?'not available (no direct cost)':r.markupPct.toFixed(1)+'%'}. Margin and markup are different measures.`,r.priceForTarget===null?'Enter a target below 100% to see the price needed.':`Net revenue needed for the target margin, including overhead: ${money(r.priceForTarget)}.`,'Contribution is before overhead. Net profit is after the overhead you allocated. Tax is removed only when the revenue includes it.']}}},
+admin:{title:'Admin cost',fields:[['adminHours','Admin hours each week',10,'hours/week'],['adminRate','Hourly wage before on-costs',45,'A$/hour'],['oncostPct','On-costs on top of wage (super, leave, overhead)',0,'% of wage (0 = none added)',0,200],['reclaimPct','Share of admin time you could reclaim',25,'% (your estimate)',0,100],['cashPct','Share of recovered time turned into cash',0,'% (0 = none counted)',0,100],['reinvestPct','Share of recovered time reinvested',0,'% (not cash)',0,100]],calc:v=>{const r=calcs().adminCost(v);return{metric:r.capacityValue,format:'currency',label:'Estimated monthly admin labour value',math:`${v.adminHours} hrs/week × 52 ÷ 12 × ${money(r.loadedRate)}/hr loaded (${money(v.adminRate)} wage + ${number(v.oncostPct??0,1)}% on-costs)`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Recovered capacity: ${number(r.recoveredHoursPerMonth,1)} hours/month, valued at ${money(r.recoveredValue)} at your loaded rate. Recovered time is not cash unless you enter a cash share.`,'Cash is counted only for the share you enter. Reinvested time is shown separately.','The reclaim, cash and reinvestment shares are your own estimates, not benchmarks.','52 ÷ 12 converts weeks to an average month of 4.33 weeks. It is not a calendar month.','Supercharged or Agent services are optional. Any benefit from them is a scenario you estimate, and none is included in this result.']}}},
+hire:{title:'Should I hire?',fields:[['salary','Annual salary',65000,'A$/year'],['superPct','Super or retirement contribution',0,'% of salary (your figure)',0,100],['leavePct','Leave loading',0,'% of salary (your figure)',0,100],['oncost','Other on-costs (insurance, allowances, employer taxes)',18,'% of salary (your figure)',0,100],['paidHours','Paid hours each week',38,'hours/week'],['utilisationPct','Billable share of paid hours',80,'% (roster utilisation)',0,100],['margin','Average contribution per job',180,'A$/job'],['jobHours','Average job duration',2.5,'hours/job',0.1],['contractorRate','Contractor hourly rate (optional comparison)',0,'A$/hour']],calc:v=>{const r=calcs().hiringCost(v);return{metric:engine.calculators.hire({salary:v.salary,oncost:r.onCostPct,margin:v.margin}).metric,format:'currency',label:'Estimated monthly employment cost',math:`${money(v.salary)}/year × (1 + ${r.onCostPct}%) ÷ 12`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[r.jobsNeeded===null?'Enter a positive contribution per job to estimate the job count.':`At ${money(v.margin)} contribution per job, about ${number(r.jobsNeeded)} additional jobs/month would cover this cost (${number(r.jobsExact,1)} exact).`,r.extraHours===null?'Job hours cannot be estimated until contribution per job is above zero.':`The ${number(r.jobsNeeded)} jobs need about ${number(r.extraHours,1)} job hours a month beyond the hours you already work. Compare that with your spare billable hours.`,r.contractorCheaper===null?'Enter a contractor hourly rate to compare employee and contractor cost at the same billable hours.':(r.contractorCheaper?'At the contractor rate you entered, a contractor costs less than the employee at these billable hours. Contract terms, insurance and tax are not modelled.':'At the contractor rate you entered, the employee cost is lower or equal at these billable hours. Contract terms, insurance and tax are not modelled.'),'Super, leave, insurance and employment rules are the figures you enter, not statutory facts. This is a cost threshold, not a recommendation to hire.']}}},
+breakeven:{title:'Break-even',fields:[['fixed','Monthly fixed costs',12000,'A$/month'],['price','Average job revenue',450,'A$/job'],['variable','Average variable cost',180,'A$/job']],calc:v=>{const r=engine.calculators.breakeven({fixed:v.fixed,price:v.price,variable:v.variable});const contribution=v.price-v.variable;const possible=r.status==='ok';const jobs=possible?r.metric:null;return{metric:jobs,format:possible?'count':'unavailable',suffix:' jobs/month',label:possible?'Jobs per month to cover fixed costs':'No break-even job count at these assumptions',math:v.fixed===0?'No fixed costs entered (0 jobs required).':contribution<=0?'No finite solution: the contribution per job is zero or negative.':`${money(v.fixed)} ÷ (${money(v.price)} − ${money(v.variable)})`,notes:[v.fixed===0?'Fixed costs are zero; this is not a claim that the service is profitable.':contribution>0?`Contribution per job: ${money(contribution)}.`:'Average job revenue must exceed variable cost before a break-even job count can be calculated.','Tax, financing and owner drawings are not included unless you put them into fixed costs.']}}},
+profit:{title:'Job profitability',fields:[['jobRevenue','Job revenue',650,'A$'],['taxMode','Is the revenue GST-inclusive?','exclusive','',undefined,undefined,[['exclusive','No, excludes GST'],['inclusive','Yes, includes GST']]],['taxRate','GST rate',10,'%',0,100],['labour','Labour cost',220,'A$'],['materials','Materials',110,'A$'],['travel','Travel/other direct cost',45,'A$'],['overhead','Overhead allocated to this job',0,'A$ (your allocation)'],['discountPct','Discount (agreed price reduction)',0,'% of revenue',0,100],['writeOffPct','Write-off (revenue not collected)',0,'% of revenue (your estimate)',0,100],['targetMarginPct','Target gross margin',30,'%',0,99.9]],calc:v=>{const r=calcs().jobProfitability(v);return{metric:r.contribution,format:'currency',label:'Contribution before overhead',math:`${money(r.netRevenue)} net revenue − ${money(r.directCost)} direct cost`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Gross margin: ${r.grossMarginPct===null?'not available (no revenue)':r.grossMarginPct.toFixed(1)+'% of net revenue'}. Markup on direct cost: ${r.markupPct===null?'not available (no direct cost)':r.markupPct.toFixed(1)+'%'}. Margin and markup are different measures.`,r.priceForTarget===null?'Enter a target below 100% to see the price needed.':`Net revenue needed for the target gross margin (before overhead): ${money(r.priceForTarget)}. Gap to your entered net revenue: ${money(r.targetGap)}.`,r.priceForNetTarget===null?'':`Net revenue needed for the same target after overhead: ${money(r.priceForNetTarget)}.`,'Contribution is before overhead. Net profit is after the overhead you allocated. Tax is removed only when the revenue includes it. Discount and write-off both reduce net revenue once, and together cannot exceed 100%.','Revenue, discount, write-off, tax and costs are checked to reconcile before any result is shown.'].filter(Boolean)}}},
 capacity:{title:'Capacity',fields:[['workers','Field workers',4,'people'],['hours','Productive hours per worker/week',30,'hours'],['duration','Average job duration',2.5,'hours/job',0.1],['currentJobs','Current jobs per month',150,'jobs'],['daysPerWeek','Available days each week',5,'days',0.5,7],['leaveDays','Leave days per worker each year',0,'days'],['nonbillPct','Non-billable share of hours',0,'% (admin, training, meetings)',0,100],['travelMin','Travel and time buffer per job',0,'minutes/job'],['cancelPct','Cancellations and no-shows',0,'% of booked jobs',0,100]],calc:v=>{const r=calcs().capacityPlanner(v);return{metric:r.bookableJobs,format:'count',suffix:' jobs/month',label:'Estimated bookable jobs/month',math:`${v.workers} workers × ${v.hours} hrs/week × 52 ÷ 12 ÷ ${v.duration} hrs/job, less your leave, non-billable time, buffers and cancellations`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[r.spare>=0?`Approximate spare capacity against current volume: ${number(r.spare)} jobs/month.`:`Current volume is about ${number(Math.abs(r.spare))} jobs/month above this estimate.`,'This does not check travel routes, skills or customer locations. Those need a scheduling tool.','Daylight-saving changes are not modelled; hours are the working hours you enter.']}}},
-calls:{title:'Missed calls',fields:[['calls','Calls/enquiries per month',120,'calls'],['missed','Missed/unanswered rate',12,'% of enquiries',0,100],['convert','Likely conversion if answered',30,'% converted',0,100],['jobValue','Average job value',350,'A$'],['reachPct','Missed enquiries you can realistically follow up',0,'% of missed (0 = none assumed)',0,100],['contribPct','Contribution margin on that work',100,'%',0,100],['commsPerEnquiry','Messaging cost per follow-up',0,'A$ per missed enquiry']],calc:v=>{const r=calcs().missedEnquiry(v);return{metric:r.opportunity,format:'currency',label:'Monthly revenue opportunity exposed',math:`${v.calls} × ${v.missed}% missed × ${v.convert}% conversion × ${money(v.jobValue)}`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:['Opportunity is what is exposed before any follow-up. Recoverable and net figures apply only the shares you enter.','Nothing here is guaranteed revenue. No tool or receptionist can promise recovery of these enquiries.','Contribution and messaging costs are your own inputs.']}}},
+calls:{title:'Missed calls',fields:[['calls','Calls/enquiries per month',120,'calls'],['missed','Missed/unanswered rate',12,'% of enquiries',0,100],['convert','Likely conversion if answered',30,'% converted',0,100],['jobValue','Average job value',350,'A$'],['reachPct','Missed enquiries you can realistically follow up',0,'% of missed (0 = none assumed)',0,100],['contribPct','Contribution margin on that work',100,'%',0,100],['commsPerEnquiry','Messaging cost per follow-up',0,'A$ per missed enquiry']],calc:v=>{const r=calcs().missedEnquiry(v);return{metric:engine.calculators.calls({calls:v.calls,missed:v.missed,convert:v.convert,jobValue:v.jobValue}).metric,format:'currency',label:'Monthly revenue opportunity exposed',math:`${v.calls} × ${v.missed}% missed × ${v.convert}% conversion × ${money(v.jobValue)}`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:['Opportunity is what is exposed before any follow-up. Recoverable and net figures apply only the shares you enter.','Nothing here is guaranteed revenue. No tool or receptionist can promise recovery of these enquiries.','Contribution and messaging costs are your own inputs.']}}},
 leads:{title:'Lead conversion',fields:[['leads','Leads per month',100,'leads'],['value','Average customer/job value',450,'A$'],['contribPct','Contribution margin on that work',100,'%',0,100],['base_contacted','Current: leads contacted',90,'%',0,100],['base_qualified','Current: contacted leads qualified',50,'%',0,100],['base_booked','Current: qualified leads booked',60,'%',0,100],['base_completed','Current: booked jobs completed',80,'%',0,100],['alt_contacted','Scenario: leads contacted',92,'%',0,100],['alt_qualified','Scenario: contacted leads qualified',50,'%',0,100],['alt_booked','Scenario: qualified leads booked',62,'%',0,100],['alt_completed','Scenario: booked jobs completed',80,'%',0,100]],calc:v=>{const r=calcs().leadConversion(v);return{metric:r.revenueDelta,format:'currency',label:'Scenario revenue difference/month',math:`${v.leads} leads × (${(r.scenRate*100).toFixed(1)}% − ${(r.baseRate*100).toFixed(1)}%) × ${money(v.value)}`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[r.direction==='reduction'?'The scenario is lower than the current funnel. The difference is shown as a reduction.':'This shows what the stage changes would be worth, using your own stage rates.','Each stage is a share of the previous stage, from 0% to 100%. It does not claim that any software, marketing or AI will cause the change.']}}},
-invoice:{title:'Invoice collection',fields:[['invoices','Invoices per month',80,'invoices'],['avg','Average invoice',520,'A$'],['age_d0_30','Unpaid from this month (0-30 days)',0,'% of monthly billing',0,100],['age_d31_60','Unpaid 31-60 days',10,'% of monthly billing',0,100],['age_d61_90','Unpaid 61-90 days',5,'% of monthly billing',0,100],['age_d90','Unpaid over 90 days',3,'% of monthly billing',0,100],['collect_d0_30','Expected collection within 13 weeks: 0-30 days',95,'% (your assumption)',0,100],['collect_d31_60','Expected collection within 13 weeks: 31-60 days',80,'% (your assumption)',0,100],['collect_d61_90','Expected collection within 13 weeks: 61-90 days',50,'% (your assumption)',0,100],['collect_d90','Expected collection within 13 weeks: 90+ days',20,'% (your assumption)',0,100],['chase','Hours/month chasing payment',7,'hours']],calc:v=>{const r=calcs().invoiceCollection(v);return{metric:r.beyondTerms,format:'currency',label:'Value beyond terms (unpaid 31+ days)',math:`${v.invoices} × ${money(v.avg)} billed = ${money(r.billed)}; ageing shares as entered`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Expected cash within 13 weeks on your assumptions: ${money(r.cashIn13Weeks)}. Older balances are not guaranteed to be recoverable.`,`${v.chase} hours/month are spent on collection activity.`,'Collecting sooner moves cash earlier. It does not create new revenue. The collection shares are starter assumptions: replace them with your own records.']}}}
+invoice:{title:'Invoice collection',fields:[['invoices','Invoices per month',80,'invoices'],['avg','Average invoice',520,'A$'],['age_d0_30','Unpaid from this month (0-30 days)',0,'% of monthly billing',0,100],['age_d31_60','Unpaid 31-60 days',10,'% of monthly billing',0,100],['age_d61_90','Unpaid 61-90 days',5,'% of monthly billing',0,100],['age_d90','Unpaid over 90 days',3,'% of monthly billing',0,100],['collect_d0_30','Expected collection within 13 weeks: 0-30 days',95,'% (your assumption)',0,100],['collect_d31_60','Expected collection within 13 weeks: 31-60 days',80,'% (your assumption)',0,100],['collect_d61_90','Expected collection within 13 weeks: 61-90 days',50,'% (your assumption)',0,100],['collect_d90','Expected collection within 13 weeks: 90+ days',20,'% (your assumption)',0,100],['terms','Payment terms (days from issue to due date)',30,'days',0,120],['within4','Share of expected cash received within 4 weeks',60,'% (your assumption)',0,100],['chase','Hours/month chasing payment',7,'hours']],calc:v=>{const r=calcs().invoiceCollection(v);const perK=r.hoursPerThousandBeyondTerms===null?'no balance beyond terms to measure against':`${r.hoursPerThousandBeyondTerms.toFixed(1)} hours per A$1,000 beyond terms`;return{metric:r.beyondTerms,format:'currency',label:`Value beyond ${r.terms}-day terms`,math:`${v.invoices} × ${money(v.avg)} billed = ${money(r.billed)}; ageing shares as entered; due ${r.terms} days after issue`,rows:r.rows.map(([l,x])=>[l,rowText(l,x)]),notes:[`Expected cash within 13 weeks on your assumptions: ${money(r.cashIn13Weeks)}, of which ${money(r.cashIn4Weeks)} within 4 weeks. Older balances are not guaranteed to be recoverable.`,`${v.chase} hours/month are spent on collection activity (${perK}).`,'Collecting sooner moves cash earlier. It does not create new revenue. The collection shares are starter assumptions: replace them with your own records.','For the cash view across the next 13 weeks, use the Thirteen-week cash flow forecast.']}}}
 };
+// Reads the local profile through the shared engine (#43): V3 first, then V2 once.
+// Malformed or unknown parts are dropped by engine.migrateProfile, never partly applied.
 function readProfile(){
-let saved={};
-try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}
-catch(_){saved={};}
-if(!Object.keys(saved).length){
-try{
-const old=JSON.parse(localStorage.getItem('titanBusinessToolProfileV2')||'{}')||{};
-const active=industryById[old.activeVertical]?old.activeVertical:'cleaning';
-saved={verticals:old.verticals,activeVertical:active,businessName:old.businessName,serviceName:old.serviceName,
-assumptions:{[active]:Object.fromEntries(Object.entries(old).filter(([key,value])=>key!=='verticals'&&key!=='activeVertical'&&key!=='businessName'&&key!=='serviceName'&&Number.isFinite(Number(value))))}};
-}catch(_){saved={};}
-}
-const allowed=Array.isArray(saved.verticals)?saved.verticals.filter((id,index,array)=>industryById[id]&&array.indexOf(id)===index):[];
+let v3=null,v2=null;
+try{v3=JSON.parse(localStorage.getItem(storageKey)||'null');}catch(_){v3=null;}
+try{v2=JSON.parse(localStorage.getItem('titanBusinessToolProfileV2')||'null');}catch(_){v2=null;}
+const saved=engine.migrateProfile({v3,v2,industryIds:data.industries.map(item=>item.id)}).profile;
+const allowed=saved.verticals.slice();
 const requested=industryById[query.get('industry')]?query.get('industry'):'';
 const active=requested||(industryById[saved.activeVertical]?saved.activeVertical:'cleaning');
 if(!allowed.includes(active))allowed.push(active);
 if(!allowed.length)allowed.push('cleaning');
-const assumptions=saved.assumptions&&typeof saved.assumptions==='object'?saved.assumptions:{};
-for(const id of Object.keys(assumptions))if(!industryById[id]||!assumptions[id]||typeof assumptions[id]!=='object')delete assumptions[id];
-return{verticals:allowed,activeVertical:active,businessName:escContext(saved.businessName),serviceName:escContext(saved.serviceName),assumptions};
+return{verticals:allowed,activeVertical:active,businessName:saved.businessName,serviceName:saved.serviceName,assumptions:saved.assumptions};
 }
 const profile=readProfile();
-function saveProfile(){try{localStorage.setItem(storageKey,JSON.stringify(profile));}catch(_){}}
+// Writes the V3 profile and only then removes the V2 copy, so a failed write never loses data.
+// Returns false when the browser refuses the write (disabled or full storage), so the caller can say so (#107).
+function saveProfile(){
+try{
+localStorage.setItem(storageKey,JSON.stringify({schema:engine.PROFILE_VERSION,...profile}));
+localStorage.removeItem(engine.LEGACY_PROFILE_KEY);
+return true;
+}catch(_){return false;}
+}
 function currentIndustry(){return industryById[profile.activeVertical]||industryById.cleaning;}
 function getAssumptions(){return profile.assumptions[profile.activeVertical]||(profile.assumptions[profile.activeVertical]={});}
 function defaultFor(key,fallback){const stored=Number(getAssumptions()[key]);if(Number.isFinite(stored))return stored;const tuned=Number(currentIndustry().defaults[key]);return Number.isFinite(tuned)?tuned:fallback;}
@@ -127,7 +132,7 @@ if(service)service.addEventListener('change',()=>{profile.serviceName=escContext
 const addButton=root.querySelector('[data-add-vertical]');
 if(addButton&&addSelect)addButton.addEventListener('click',()=>{const id=addSelect.value;if(!industryById[id]||profile.verticals.includes(id))return;profile.verticals.push(id);profile.activeVertical=id;saveProfile();drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
 const clear=root.querySelector('[data-clear-profile]');
-if(clear)clear.addEventListener('click',()=>{try{localStorage.removeItem(storageKey);localStorage.removeItem('titanBusinessToolProfileV2');}catch(_){}profile.verticals=['cleaning'];profile.activeVertical=industryById[query.get('industry')]?query.get('industry'):'cleaning';if(profile.activeVertical!=='cleaning')profile.verticals.push(profile.activeVertical);profile.businessName='';profile.serviceName='';profile.assumptions={};saveProfile();drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
+if(clear)clear.addEventListener('click',()=>{try{localStorage.removeItem(storageKey);localStorage.removeItem('titanBusinessToolProfileV2');localStorage.removeItem(engine.formulas.QUOTE_STORE_KEY);}catch(_){}profile.verticals=['cleaning'];profile.activeVertical=industryById[query.get('industry')]?query.get('industry'):'cleaning';if(profile.activeVertical!=='cleaning')profile.verticals.push(profile.activeVertical);profile.businessName='';profile.serviceName='';profile.assumptions={};drawSummary();root.dispatchEvent(new CustomEvent('toolverticalchange'));});
 drawSummary();
 }
 function showCalculatorError(resultElement,definition,message){
@@ -181,27 +186,107 @@ const definition=defaults[active];
 const values={};
 for(const[key,value]of new FormData(form).entries()){const field=definition.fields.find(item=>item[0]===key);values[key]=field&&field[6]?String(value):Number(value);}
 for(const[key,value]of Object.entries(values)){if(typeof value==='number'&&(!Number.isFinite(value)||value<0)){showCalculatorError(result,definition,'Enter zero or a positive number for '+key+'.');return;}}
+// Shared rules (#42): blanks, NaN, infinity, out-of-range values and over-precise money are refused
+// before any result. Only tools whose form fields match the engine rules are checked here.
+// Validate the raw form strings: Number('') is 0, so blanks must be refused before conversion (#105).
+const rules=engine.RULES[active];
+if(rules&&Object.keys(rules).every(key=>key in values)){
+const checked=engine.validate(active,Object.fromEntries(new FormData(form).entries()));
+if(!checked.ok){showCalculatorError(result,definition,checked.errors.map(item=>item.message).join(' '));return;}
+}
 let outcome;
 try{outcome=definition.calc(values);}
 catch(error){showCalculatorError(result,definition,error.message);return;}
 for(const[key,value]of Object.entries(values))if(typeof value==='number')getAssumptions()[key]=value;
-saveProfile();
+const saved=saveProfile();
 showCalculatorResult(result,definition,outcome,values);
+// A storage failure is shown in the result, not hidden (#107).
+if(!saved)result.append(textNode('p','This browser would not save your assumptions, so they will not be here on your next visit.','form-error'));
 });
 tabs.forEach(tab=>tab.addEventListener('click',()=>{if(!defaults[tab.dataset.toolTab])return;active=tab.dataset.toolTab;draw();}));
 root.addEventListener('toolverticalchange',draw);
 draw();
+addAssumptionsTools(root);
+}
+// Portable assumptions file (#106). Numbers for the active service type only. Import is all-or-nothing:
+// the engine refuses the whole file on any problem, and the values are applied only after the user confirms.
+function addAssumptionsTools(root){
+const ids=verticalOptions.map(item=>item.id);
+const panel=document.createElement('section');panel.className='assumptions-tools';panel.setAttribute('aria-label','Assumptions file');
+const heading=textNode('h3','Save or load your assumptions');
+const note=textNode('p','The file holds numbers only for the service type shown above. It has no business name, customer, staff or quote text.','fine-print');
+const exportButton=document.createElement('button');exportButton.type='button';exportButton.className='button button-secondary';exportButton.textContent='Download assumptions file';
+const label=document.createElement('label');label.htmlFor='assumptions-file';label.textContent='Load an assumptions file';
+const input=document.createElement('input');input.type='file';input.id='assumptions-file';input.accept='.json,application/json';
+const status=textNode('p','','fine-print');status.setAttribute('role','status');
+const preview=document.createElement('div');
+exportButton.addEventListener('click',()=>{
+try{
+const doc=engine.exportAssumptions(profile,profile.activeVertical,ids);
+const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='titan-tool-assumptions-'+profile.activeVertical+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+status.textContent='Downloaded '+Object.keys(doc.assumptions).length+' saved values for '+currentIndustry().name+'.';
+}catch(error){status.textContent=error.message;}
+});
+input.addEventListener('change',()=>{
+preview.replaceChildren();
+const file=input.files&&input.files[0];
+if(!file)return;
+if(file.size>engine.PORTABLE_MAX_CHARS){status.textContent='The file is too large to import. Nothing was imported.';input.value='';return;}
+const reader=new FileReader();
+reader.addEventListener('load',()=>{
+const checked=engine.validateImport(String(reader.result||''),ids);
+input.value='';
+if(!checked.ok){status.textContent='Not imported. '+checked.errors.map(item=>item.message).join(' ');return;}
+if(checked.value.vertical!==profile.activeVertical){status.textContent='This file is for '+(industryById[checked.value.vertical]?.name||'another service type')+'. Switch to that service type first. Nothing was imported.';return;}
+const pairs=Object.entries(checked.value.assumptions).map(([key,value])=>key+': '+value);
+const list=textNode('p','Values ready to import ('+pairs.length+'): '+pairs.join('; '),'fine-print');
+const apply=document.createElement('button');apply.type='button';apply.className='button button-primary';apply.textContent='Import these values';
+apply.addEventListener('click',()=>{
+const next=engine.applyImport(profile,checked);
+profile.assumptions=next.profile.assumptions;saveProfile();
+preview.replaceChildren();status.textContent='Imported '+next.applied.length+' values. Submit the calculator to see new results.';
+root.dispatchEvent(new CustomEvent('toolverticalchange'));
+});
+preview.append(list,apply);
+});
+reader.addEventListener('error',()=>{status.textContent='The file could not be read. Nothing was imported.';});
+reader.readAsText(file);
+});
+panel.append(heading,note,exportButton,label,input,status,preview);
+root.append(panel);
 }
 document.querySelectorAll('[data-tools-app]').forEach(initializeCalculator);
+function dateText(iso){return new Date(iso+'T00:00:00Z').toLocaleDateString('en-AU',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'});}
 const QUOTE_TAX_TEXT={none:'No GST applied on this quote.',exclusive:'Prices exclude GST. GST is added on top.',inclusive:'Prices include GST. GST is shown inside the total.'};
+// Offers the figures saved by Service pricing, but only when the user clicks. The saved figures are
+// read through the calc parser, so a damaged or hand-edited value is ignored and nothing is shown.
+function offerPricingHandoff(box,calc,apply){
+if(!box||!calc||typeof calc.parsePricingHandoff!=='function')return;
+let figures=null;
+try{figures=calc.parsePricingHandoff(localStorage.getItem(calc.PRICING_HANDOFF_KEY));}catch(_){figures=null;}
+if(!figures)return;
+const label=figures.role?'for '+figures.role:'from your last calculation';
+const note=textNode('p',`Service pricing figures ${label} are saved on this device. They exclude GST. Nothing is uploaded.`,'fine-print');
+note.setAttribute('role','status');
+const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Use the Service pricing figures';
+button.addEventListener('click',()=>apply(figures));
+box.replaceChildren(note,button);box.hidden=false;
+}
 function initializeQuoteBuilder(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const form=root.querySelector('[data-quote-form]'),lines=root.querySelector('[data-quote-lines]'),output=root.querySelector('[data-quote-result]');
 if(!form||!lines||!output||!calc)return;
 const status=root.querySelector('[data-quote-status]'),savedSelect=root.querySelector('[data-quote-saved]');
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
-let version=0;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+f('service').value=figures.role||f('service').value;
+f('taxMode').value='exclusive';
+lines.replaceChildren();addLine('Service from pricing tool',1,figures.targetPrice);
+render();say('Figures from Service pricing added. Prices exclude GST; check the scope and quantities before you save.');
+});
+let version=0;let savedAt=null;
 const say=(text)=>{if(status)status.textContent=text;};
 function readStore(){try{const s=JSON.parse(localStorage.getItem(calc.QUOTE_STORE_KEY)||'{}');return{quotes:Array.isArray(s.quotes)?s.quotes:[]};}catch(_){return{quotes:[]};}}
 function writeStore(store){try{localStorage.setItem(calc.QUOTE_STORE_KEY,JSON.stringify(store));return true;}catch(_){return false;}}
@@ -219,8 +304,16 @@ row.append(desc,qtyLabel,priceLabel,remove);lines.append(row);
 function refreshSaved(selectRef){
 if(!savedSelect)return;
 const store=readStore();savedSelect.replaceChildren();
-if(!store.quotes.length){const o=document.createElement('option');o.value='';o.textContent='None saved on this device';savedSelect.append(o);return;}
+if(!store.quotes.length){const o=document.createElement('option');o.value='';o.textContent='None saved on this device';savedSelect.append(o);refreshVersions();return;}
 for(const item of store.quotes){const o=document.createElement('option');o.value=item.reference;o.textContent=`${item.reference} (version ${item.version})`;o.selected=item.reference===selectRef;savedSelect.append(o);}
+refreshVersions();
+}
+// Lists the stored earlier versions of the selected saved quote, for reopening.
+function refreshVersions(){
+const pick=root.querySelector('[data-quote-version]');if(!pick)return;
+const ref=savedSelect?savedSelect.value:'';const rec=readStore().quotes.find(item=>item.reference===ref);
+pick.replaceChildren();const latest=document.createElement('option');latest.value='';latest.textContent='Latest version';pick.append(latest);
+for(const h of(rec&&Array.isArray(rec.history)?rec.history:[])){const o=document.createElement('option');o.value=String(h.version);o.textContent=`Version ${h.version} (saved ${new Date(h.savedAt).toLocaleDateString('en-AU')})`;pick.append(o);}
 }
 function render(){
 const q=collect();
@@ -234,7 +327,9 @@ if(q.customer)output.append(textNode('p','Prepared for: '+q.customer));
 const ref=q.reference||'Not yet saved';
 output.append(textNode('p',`Reference: ${ref}${version?' (version '+version+')':''}`));
 const days=Number(q.validDays)||0;
-output.append(textNode('p',days>0?`Valid for ${days} days from ${new Date().toLocaleDateString('en-AU')}.`:'No validity period entered.'));
+const issuedOn=savedAt||new Date().toISOString();
+let until=null;try{until=calc.quoteValidUntil(issuedOn,days);}catch(error){output.append(textNode('p',error.message,'form-error'));}
+output.append(textNode('p',until?`Valid for ${days} days from ${dateText(issuedOn.slice(0,10))}, until ${dateText(until)}.`:'No validity period entered.'));
 const table=document.createElement('table');table.className='quote-preview-table';const body=document.createElement('tbody');
 t.lines.filter(line=>line.description||line.unitCents>0).forEach(line=>{const tr=document.createElement('tr');tr.append(textNode('td',line.description||'Service item'),textNode('td',`${number(line.quantity,2)} × ${money2(line.unitCents)}`),textNode('td',money2(line.lineCents)));body.append(tr);});
 table.append(body);output.append(table);
@@ -254,7 +349,7 @@ function resetForm(){
 for(const name of['business','customer','service','reference','scope','exclusions','terms'])f(name).value='';
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
 f('validDays').value='14';f('taxMode').value='exclusive';f('taxRate').value='10';f('discount').value='0';f('consent').checked=false;
-lines.replaceChildren();addLine('Service',1,0);addLine();version=0;
+lines.replaceChildren();addLine('Service',1,0);addLine();version=0;savedAt=null;
 }
 function currentRecord(){const q=collect();return q;}
 function saveDraft(){
@@ -263,7 +358,7 @@ try{
 const store=readStore();
 const r=calc.saveQuoteRecord(store,{...q,consentToStoreCustomer:q.consentToStoreCustomer},new Date().toISOString());
 if(!writeStore({quotes:r.quotes})){say('This browser would not keep the quote. Use Download quote file to keep a copy.');return;}
-version=r.saved.version;f('reference').value=r.saved.reference;
+version=r.saved.version;savedAt=r.saved.savedAt;f('reference').value=r.saved.reference;
 say(`Saved ${r.saved.reference} as version ${r.saved.version} on this device.`+(q.customer&&!q.consentToStoreCustomer?' The customer name was not saved because consent was not ticked.':''));
 refreshSaved(r.saved.reference);render();
 }catch(error){say(error.message);}
@@ -272,11 +367,16 @@ function openSaved(){
 const ref=savedSelect?savedSelect.value:'';
 const rec=readStore().quotes.find(item=>item.reference===ref);
 if(!rec){say('Choose a saved quote to open.');return;}
-f('business').value=rec.business||'';f('customer').value=rec.customer||'';f('service').value=rec.service||'';f('reference').value=rec.reference;
-f('validDays').value=String(rec.validDays??14);f('scope').value=rec.scope||'';f('exclusions').value=rec.exclusions||'';f('terms').value=rec.terms||'';
-f('taxMode').value=rec.taxMode||'none';f('taxRate').value=String(rec.taxRate??10);f('discount').value=String(rec.discountPct??0);f('consent').checked=Boolean(rec.consentToStoreCustomer);
-lines.replaceChildren();(rec.lines&&rec.lines.length?rec.lines:[{description:'',quantity:1,unitPrice:0}]).forEach(line=>addLine(line.description,line.quantity,line.unitPrice));
-version=rec.version;say(`Opened ${rec.reference} version ${rec.version}. Save again to create a new version.`);render();
+const pick=root.querySelector('[data-quote-version]');
+const chosen=pick&&pick.value!==''?Number(pick.value):undefined;
+let r;try{r=calc.restoreQuote(rec,chosen);}catch(error){say(error.message);return;}
+f('business').value=r.business;f('customer').value=r.customer;f('service').value=r.service;f('reference').value=r.reference;
+f('validDays').value=String(r.validDays);f('scope').value=r.scope;f('exclusions').value=r.exclusions;f('terms').value=r.terms;
+f('taxMode').value=r.taxMode;f('taxRate').value=String(r.taxRate);f('discount').value=String(r.discountPct);f('consent').checked=r.consentToStoreCustomer;
+lines.replaceChildren();(r.lines.length?r.lines:[{description:'',quantity:1,unitPrice:0}]).forEach(line=>addLine(line.description,line.quantity,line.unitPrice));
+version=rec.version;savedAt=r.version===rec.version?rec.savedAt:((rec.history||[]).find(h=>h.version===r.version)||{}).savedAt||null;
+const older=r.version===rec.version?'':' This is an earlier version; saving creates a new latest version.';
+say(`Opened ${rec.reference} version ${r.version}.${older} Save again to create a new version.`);render();
 }
 function deleteSaved(){
 const ref=savedSelect?savedSelect.value:'';
@@ -286,9 +386,9 @@ const store={quotes:readStore().quotes.filter(item=>item.reference!==ref)};
 writeStore(store);refreshSaved('');say('Deleted '+ref+' from this device.');
 }
 function downloadQuote(){
-const q=currentRecord();let t;
-try{t=totalsFor(q);}catch(error){say(error.message);return;}
-const doc={format:'titan-zero-quote',formatVersion:1,exportedAt:new Date().toISOString(),version:version||null,quote:{...q,consentToStoreCustomer:undefined,totals:{subtotal:t.subtotalCents/100,discount:t.discountCents/100,beforeGst:t.exTaxCents/100,gst:t.gstCents/100,total:t.totalCents/100}}};
+const q=currentRecord();let t,validUntil;
+try{t=totalsFor(q);validUntil=calc.quoteValidUntil(savedAt||new Date().toISOString(),q.validDays);}catch(error){say(error.message);return;}
+const doc={format:'titan-zero-quote',formatVersion:1,exportedAt:new Date().toISOString(),version:version||null,issuedAt:savedAt,validUntil,quote:{...q,consentToStoreCustomer:undefined,totals:{subtotal:t.subtotalCents/100,discount:t.discountCents/100,beforeGst:t.exTaxCents/100,gst:t.gstCents/100,total:t.totalCents/100}}};
 delete doc.quote.consentToStoreCustomer;
 const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
 const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='quote-'+(calc.quoteRecordId(q.reference)||'draft')+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -299,18 +399,30 @@ const newButton=root.querySelector('[data-quote-new]');if(newButton)newButton.ad
 const saveButton=root.querySelector('[data-quote-save]');if(saveButton)saveButton.addEventListener('click',saveDraft);
 const downloadButton=root.querySelector('[data-quote-download]');if(downloadButton)downloadButton.addEventListener('click',downloadQuote);
 const openButton=root.querySelector('[data-quote-open]');if(openButton)openButton.addEventListener('click',openSaved);
+if(savedSelect)savedSelect.addEventListener('change',refreshVersions);
 const deleteButton=root.querySelector('[data-quote-delete]');if(deleteButton)deleteButton.addEventListener('click',deleteSaved);
 const printButton=root.querySelector('[data-quote-print]');if(printButton)printButton.addEventListener('click',()=>window.print());
 form.addEventListener('input',render);form.addEventListener('change',render);
 form.addEventListener('submit',event=>{event.preventDefault();render();});
-addLine('Service',1,0);addLine();render();refreshSaved('');
+const incoming=takeQuoteTransfer();
+if(incoming){lines.replaceChildren();addLine(incoming.description||'Service',1,incoming.unitPrice);addLine();say('A price from the job-cost sheet was added as a line. Check it before saving.');}
+else{addLine('Service',1,0);addLine();}
+render();refreshSaved('');
+// Reads and clears the one-off line sent from the job-cost sheet. Stored on this device only.
+function takeQuoteTransfer(){try{const raw=localStorage.getItem(calc.QUOTE_TRANSFER_KEY);if(raw===null)return null;localStorage.removeItem(calc.QUOTE_TRANSFER_KEY);return calc.readQuoteTransfer(raw);}catch(_){return null;}}
 }
 function initializeJobCost(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const form=root.querySelector('[data-job-cost-form]'),output=root.querySelector('[data-job-cost-result]'),roles=root.querySelector('[data-job-roles]');
 if(!form||!output||!roles||!calc)return;
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+roles.replaceChildren();addRole(figures.role||'Labour',figures.labourHours,figures.labourRate);
+f('materials').value=figures.materials;f('materialMarkupPct').value=0;f('equipment').value=figures.equipment;
+f('km').value=0;f('kmRate').value=0;f('travel').value=figures.travel;f('overhead').value=figures.overhead;
+f('contingencyPct').value=figures.contingencyPct;f('target').value=figures.targetMarginPct;f('price').value=figures.targetPrice;
+});
 function addRole(name='',hours=1,rate=0){
 const row=document.createElement('div');row.className='quote-line-row';
 const wrap=(label,input)=>{const l=document.createElement('label');l.textContent=label;l.append(input);return l;};
@@ -338,6 +450,11 @@ const rows=[...c.rows,['Target price (ex GST)',c.targetPrice===null?'Enter a tar
 for(const[label,value]of rows){list.append(textNode('dt',label),textNode('dd',typeof value==='number'?money(value):String(value)));}
 output.append(list);
 output.append(textNode('p','Costs are kept separate from the price. GST is not included in any cost or in the price shown here. The target price is an arithmetic scenario, not a recommendation.','fine-print'));
+const send=document.createElement('button');send.type='button';send.className='button button-secondary';send.textContent='Send price to the quote builder';
+const sendStatus=textNode('p','Sends the customer price ex GST as one quote line. It stays on this device and is not put in a link.','fine-print');sendStatus.setAttribute('role','status');
+send.addEventListener('click',()=>{try{// Fixed line text: the service name is job text and is never sent (#106).
+const rec=calc.quoteTransferRecord(c,'Service from job-cost sheet',new Date().toISOString());localStorage.setItem(calc.QUOTE_TRANSFER_KEY,JSON.stringify(rec));sendStatus.textContent='Price sent. Open the quote builder on this device to review the line.';}catch(error){sendStatus.textContent=error.message;}});
+output.append(send,sendStatus);
 const context={tool:'Job-cost sheet',vertical:currentIndustry().name,business:businessName,service:f('service').value.trim(),result:'Total cost '+money(c.totalCost)+'; price (ex GST) '+money(c.price)+'; margin '+(c.marginPct===null?'n/a':c.marginPct.toFixed(1)+'%')+'.',calculation:`Labour ${money(c.labour)}; direct costs ${money(c.directCost)}; contingency ${money(c.contingency)}; overhead ${money(c.overhead)}.`};
 addHandoffButtons(output,context);
 });
@@ -346,18 +463,18 @@ const TEMPLATE_REVISION=1;
 const CHECKLIST_DRAFT_KEY='titanChecklistDraftV1';
 const taskLists=data.checklists||{};
 function initializeChecklist(root){
-const calc=globalThis.TitanToolCalcs;
+const calc=engine.formulas;
 const select=root.querySelector('[data-checklist-vertical]'),list=root.querySelector('[data-generated-checklist]');
 if(!select||!list||!calc)return;
 const title=root.querySelector('[data-checklist-title]'),job=root.querySelector('[data-checklist-job]'),jobLabel=root.querySelector('[data-checklist-job-label]');
 const progressEl=root.querySelector('[data-checklist-progress]'),signOff=root.querySelector('[data-checklist-signoff]');
 const initial=industryById[query.get('industry')]?query.get('industry'):'cleaning';
 for(const industry of verticalOptions){const option=document.createElement('option');option.value=industry.id;option.textContent=industry.name;option.selected=industry.id===initial;select.append(option);}
-function readDraft(){try{const d=JSON.parse(localStorage.getItem(CHECKLIST_DRAFT_KEY)||'null');return d&&d.state&&Array.isArray(d.state.tasks)?d.state:null;}catch(_){return null;}}
 function persist(){try{localStorage.setItem(CHECKLIST_DRAFT_KEY,JSON.stringify({savedAt:new Date().toISOString(),state}));}catch(_){}}
 let state;
-const draft=readDraft();
-if(draft&&draft.industry===initial){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
+let draft=null;
+try{draft=calc.parseChecklistDraft(localStorage.getItem(CHECKLIST_DRAFT_KEY),initial,taskLists);}catch(_){draft=null;}
+if(draft){state=calc.reconcileChecklist(draft,initial,taskLists,TEMPLATE_REVISION);}
 else{state={...calc.emptyChecklist(initial),tasks:calc.templateTasks(initial,taskLists,TEMPLATE_REVISION)};}
 let nextId=1;
 function refreshProgress(){const p=calc.checklistProgress(state);if(progressEl)progressEl.textContent=`${p.done} of ${p.total} tasks done${p.complete?'. All tasks complete.':'.'}`;}
@@ -407,6 +524,14 @@ if(anyDone&&!window.confirm('Reset all ticks, notes and custom tasks for this ch
 state={...calc.emptyChecklist(state.industry),job:state.job,tasks:calc.templateTasks(state.industry,taskLists,TEMPLATE_REVISION)};persist();render();
 });
 root.querySelector('[data-print-checklist]').addEventListener('click',()=>window.print());
+const exportButton=root.querySelector('[data-export-checklist]');
+if(exportButton)exportButton.addEventListener('click',()=>{
+const text=calc.checklistText(state,(industryById[state.industry]||{}).name||state.industry);
+const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+const link=document.createElement('a');link.href=url;link.download=state.industry+'-checklist.txt';document.body.append(link);link.click();link.remove();
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+if(progressEl)progressEl.textContent='Checklist text downloaded. It was made in this browser and was not uploaded.';
+});
 render();
 }
 document.querySelectorAll('[data-quote-builder]').forEach(initializeQuoteBuilder);

@@ -1,6 +1,7 @@
 // Regression tests for the planners in issues #34-#41 (assets/planner-calcs.js).
 // Pure functions only: no DOM, no network, no storage.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 
@@ -60,6 +61,38 @@ test('service pricing: GST adds 10% to the including-GST column, rounded to cent
   const row = r.tables[0].rows[0];
   assert.equal(row[1].v, 0.05);
   assert.equal(row[2].v, 0.06); // GST on 5 cents is 0.5 cent, rounded to 1 cent, so 6 cents
+});
+
+test('service pricing (#34): extreme but valid inputs stay finite and in order', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 10000, labourRate: 1000000, materials: 1000000, travel: 1000000, equipment: 1000000, overhead: 1000000, contingencyPct: 100, targetMarginPct: 99.99, discountPct: 99.99 });
+  assert.equal(r.ok, true);
+  const cost = summary(r, 'True unit cost, excluding GST').v;
+  const target = summary(r, 'Recommended price at target margin').v;
+  assert.ok(Number.isFinite(cost) && Number.isFinite(target), 'no Infinity or NaN');
+  assert.ok(target >= cost, 'target price is never below cost');
+  const list = cell(r, 'List price before discount')[1].v;
+  const after = cell(r, 'Price after discount')[1].v;
+  assert.ok(after <= list && after > 0, 'discounted price stays below list and above zero');
+});
+
+test('service pricing (#34): contingency applies to direct cost only, and overhead is added once', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, materials: 50, contingencyPct: 100, overhead: 25 });
+  // direct = 150, contingency = 150, overhead = 25, unit cost = 325
+  assert.equal(summary(r, 'True unit cost, excluding GST').v, 325);
+});
+
+test('service pricing (#34): a discount of 99.99% still gives a list price that is rounded to the cent', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 100, targetMarginPct: 20, discountPct: 99.99 });
+  const list = cell(r, 'List price before discount')[1].v;
+  assert.equal(Math.round(list * 100), list * 100, 'list price is whole cents');
+  assert.ok(list > 0);
+});
+
+test('service pricing (#34): GST inclusive column is the ex-GST figure plus 10%, to the cent, with no drift on odd cents', () => {
+  const r = P.servicePricing({ ...basePricing, labourHours: 1, labourRate: 0.01, gst: 'yes' });
+  const floor = cell(r, 'Floor price (covers cost, no margin)');
+  assert.equal(floor[1].v, 0.01);
+  assert.equal(floor[2].v, 0.01, '10% of one cent rounds to zero cents');
 });
 
 test('service pricing: rejects money with more than two decimals and negative values', () => {
@@ -161,7 +194,7 @@ test('travel: rejects a negative wage and out-of-range days', () => {
 });
 
 // ---- #37 recurring service revenue ------------------------------------------
-const recurring = { clients: 0, frequency: 'monthly', price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
+const recurring = { weeklyClients: 0, fortnightlyClients: 0, monthlyClients: 0, price: 0, variableCost: 0, cancelPct: 0, churnPct: 0, newClients: 0, newFrequency: 'monthly', collectedSamePct: 100, rateChangePct: 0, rateChangeMonth: 0 };
 
 test('recurring: zero clients give zero revenue, including the deferred figure', () => {
   const r = P.recurringRevenue(recurring);
@@ -171,12 +204,12 @@ test('recurring: zero clients give zero revenue, including the deferred figure',
 });
 
 test('recurring: weekly clients use 52 visits a year, spread over 12 months', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 10, frequency: 'weekly', price: 100 });
+  const r = P.recurringRevenue({ ...recurring, weeklyClients: 10, price: 100 });
   assert.equal(r.headline.v, 51999.96); // 10 x 52/12 x 100 x 12
 });
 
 test('recurring: 100% churn with new clients leaves only the new clients in month 2 onward', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 50, frequency: 'monthly', price: 10, churnPct: 100, newClients: 3 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 50, price: 10, churnPct: 100, newClients: 3 });
   const rows = r.tables[0].rows;
   assert.equal(rows[0][1].v, 50);
   assert.equal(rows[1][1].v, 3);
@@ -184,14 +217,14 @@ test('recurring: 100% churn with new clients leaves only the new clients in mont
 });
 
 test('recurring: a rate change applies only from the chosen month', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, rateChangePct: 10, rateChangeMonth: 7 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, rateChangePct: 10, rateChangeMonth: 7 });
   const rows = r.tables[0].rows;
   assert.equal(rows[5][2].v, 100);
   assert.equal(rows[6][2].v, 110);
 });
 
 test('recurring: unpaid share is deferred, not counted as cash received', () => {
-  const r = P.recurringRevenue({ ...recurring, clients: 1, frequency: 'monthly', price: 100, collectedSamePct: 50 });
+  const r = P.recurringRevenue({ ...recurring, monthlyClients: 1, price: 100, collectedSamePct: 50 });
   assert.equal(summary(r, 'Deferred receipts at end of month 12').v, 50);
   assert.equal(r.tables[0].rows[0][6].v, 50); // month 1 cash received is half
 });
@@ -296,6 +329,32 @@ test('staff: makes no competency claim from training hours', () => {
   assert.match(r.notes.join(' '), /does not infer skills or competence/);
 });
 
+test('staff: scenario minus current gives hour, contribution and utilisation differences', () => {
+  const current = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 4, travelHours: 6, contribPerHour: 60 })] });
+  const scenario = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 2, contractedHours: 40, trainingHours: 0, travelHours: 6, contribPerHour: 60 })] });
+  const diff = P.pairStaff(current, scenario);
+  assert.equal(diff[0].v, 8); // 2 people x 4 training hours returned to productive time
+  assert.equal(diff[1].v, 480); // 8 hours x A$60
+  assert.equal(diff[2].v, 10); // 75% to 85%
+});
+
+test('staff: pairing returns nothing when either scenario is refused', () => {
+  const ok = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  const bad = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ contractedHours: 500 })] });
+  assert.deepEqual(P.pairStaff(ok, bad), []);
+});
+
+test('staff: no available hours in one scenario is shown as not available, not zero', () => {
+  const none = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 0 })] });
+  const some = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ headcount: 1, contractedHours: 40 })] });
+  assert.equal(typeof P.pairStaff(none, some)[2].v, 'string');
+});
+
+test('staff: handoff lists productive hours per person, with zero-headcount teams left out', () => {
+  const r = P.staffUtilisation({ targetUtilPct: 75, rows: [row({ role: 'Cleaner', headcount: 3, contractedHours: 38, leaveHours: 2, trainingHours: 3, travelHours: 5 }), row({ role: 'Empty' })] });
+  assert.deepEqual(r.handoff, [{ role: 'Cleaner', people: 3, productivePerPerson: 28 }]);
+});
+
 // ---- #40 customer response ---------------------------------------------------
 const cust = {
   enquiries: 0, sharePhone: 100, shareWeb: 0, shareEmail: 0, avgJobValue: 0, jobVariableCost: 0,
@@ -351,8 +410,60 @@ test('customer response: pairing reports differences for bookings and staff hour
   assert.equal(pairs[1].v, -10);
 });
 
+test('customer response: opt-out, quiet-hours and Spam Act narrative is shown with every result', () => {
+  const r = P.customerResponse({ ...cust, enquiries: 10 });
+  const notes = r.notes.join(' ');
+  assert.match(notes, /opt-out/);
+  assert.match(notes, /quiet hours/);
+  assert.match(notes, /Spam Act 2003/);
+  assert.match(notes, /No AI benefit is assumed or guaranteed/);
+});
+
+test('customer response: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000000 }).ok, true);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000001 }).ok, false);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 10, followUps: 6 }).ok, false);
+});
+
+test('customer response: money is rounded to the cent once, with no float drift', () => {
+  // 3 completed bookings at A$19.99 less A$0.10 variable cost each = A$59.67; no consent, so no messages
+  const r = P.customerResponse({ ...cust, enquiries: 3, reachPhone: 100, consentPct: 0, qualifiedPct: 100, bookPct: 100, avgJobValue: 19.99, jobVariableCost: 0.1, costPerMessage: 0.1 });
+  assert.equal(r.summary[0].v, 59.67);
+});
+
 // ---- #41 upgrade configurator -----------------------------------------------
 const none = { assistant: false, agent: false, supercharged: false, scheduled: false, sorted: false, skilled: false, assistantBand: 'standard', agentBand: 'standard', hoursSavedPerWeek: 0, valuePerHour: 0 };
+
+const catalogue = JSON.parse(readFileSync(new URL('../assets/upgrade-catalogue.json', import.meta.url), 'utf8'));
+
+test('upgrades: AI bands match the approved catalogue, so the planner cannot drift from it', () => {
+  const names = Object.keys(catalogue.bands).map((k) => k.toLowerCase()).sort();
+  assert.deepEqual(Object.keys(P.AI_BANDS).sort(), names);
+  for (const [name, band] of Object.entries(catalogue.bands)) {
+    assert.equal(P.AI_BANDS[name.toLowerCase()].assistant, band.assistant, `${name} Assistant`);
+    assert.equal(P.AI_BANDS[name.toLowerCase()].agent, band.agentTeam, `${name} Agent Team`);
+  }
+});
+
+test('upgrades: every app upgrade in the catalogue has no price, so the planner shows request quote', () => {
+  const apps = catalogue.upgrades.filter((u) => u.type === 'connected-app');
+  assert.equal(apps.length, 4);
+  for (const app of apps) assert.equal(app.priceMonthly, null, app.id);
+  const r = P.upgradePlan({ ...none, supercharged: true, scheduled: true, sorted: true, skilled: true });
+  assert.equal(r.summary[2].v, 4);
+});
+
+test('upgrades: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 168, valuePerHour: 10000 }).ok, true);
+  assert.equal(P.upgradePlan({ ...none, hoursSavedPerWeek: 169 }).ok, false);
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 10000.01 }).ok, false);
+});
+
+test('upgrades: scenario value is rounded to the cent once, and zero hours give zero', () => {
+  const r = P.upgradePlan({ ...none, hoursSavedPerWeek: 1, valuePerHour: 33.33 });
+  assert.equal(r.summary[3].v, 144.43); // 1 x 52/12 x 33.33 = 144.4333, rounded to the cent
+  assert.equal(P.upgradePlan({ ...none, valuePerHour: 50 }).summary[3].v, 0);
+});
 
 test('upgrades: nothing selected is a free foundation with no fees', () => {
   const r = P.upgradePlan(none);

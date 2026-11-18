@@ -22,6 +22,7 @@ This repository is a static site. It has no server-side code. The live host must
 | `/industries/<slug>/` | `pages/industry-<slug>.html` |
 | `/frontdesk/` | `pages/frontdesk.html` |
 | `/frontdeskpro/`, `/frontdeskai/`, `/frontdeskagent/` | `pages/frontdeskpro.html`, `pages/frontdeskai.html`, `pages/frontdeskagent.html` |
+| `/frontdesk-compatibility/`, `/frontdesk-billing/`, `/frontdesk-troubleshooting/`, `/frontdesk-status/`, `/frontdesk-privacy/` | `pages/frontdesk-compatibility.html`, `pages/frontdesk-billing.html`, `pages/frontdesk-troubleshooting.html`, `pages/frontdesk-status.html`, `pages/frontdesk-privacy.html` (support topics, #91) |
 
 ## Hosting requirements
 
@@ -37,6 +38,15 @@ This repository is a static site. It has no server-side code. The live host must
 3. Check that each page's canonical tag matches its public URL.
 4. Load each changed page in a browser at a desktop width and a phone width, with no console errors and no horizontal scrolling.
 5. Commit, then publish by copying the repository contents to the host (without `.git`).
+
+One command reproduces every published copy, including the Front Desk pages: `node scripts/site-gate.mjs sync`. Then confirm the gate and its tests pass (Node 22, no install needed):
+
+```bash
+node scripts/site-gate.mjs sync && node scripts/site-gate.mjs check
+node --test tests/site-gate-drift.test.mjs tests/site-gate-jsonld.test.mjs
+```
+
+The `Website release gate` workflow fails on any drift, missing sitemap entry, broken local link, in-page link without a target, or unapproved price. The gate does not yet run a browser: viewport, keyboard and no-JS checks are manual (see step 4).
 
 ## Rollback
 
@@ -56,10 +66,16 @@ Reproducible checks (run from the repository root; Node 22, no install needed):
 
 ```bash
 node --check assets/tools-engine.js && node --check assets/tools.js && node --check assets/site.js
-node --test tests/break-even.test.mjs tests/tools-engine.test.mjs tests/tools-handoff-privacy.test.mjs tests/tools-legacy-url-privacy.test.mjs
+node --test tests/*.test.mjs
 node scripts/test-break-even.mjs
 node scripts/check-tool-parity.mjs
+node scripts/check-tool-a11y.mjs
+node scripts/site-gate.mjs check
+# Needs jsdom outside the repository, for example:
+#   npm install --prefix /tmp/dom jsdom@24 && JSDOM_DIR=/tmp/dom node scripts/tools-dom-smoke.cjs
 ```
+
+`scripts/tools-dom-smoke.cjs` runs the live calculator pages in jsdom: it submits forms, checks the break-even edge cases, validation messages and the V2 to V3 profile migration. `scripts/check-tool-a11y.mjs` checks labels, button names, one h1 and live regions on the calculator source pages. Both run in `.github/workflows/tools-regression.yml`.
 
 Block a release if any command fails. The parity check fails when a `tools/<slug>/index.html` copy differs from `pages/tool-<slug>.html`, or when a calculator page loads `tools.js` before the engine.
 

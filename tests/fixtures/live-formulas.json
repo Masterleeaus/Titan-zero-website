@@ -1,0 +1,1095 @@
+{
+  "admin/default": {
+    "ok": true,
+    "result": {
+      "metric": 1949.9999999999998,
+      "capacityValue": 1949.9999999999998,
+      "loadedRate": 45,
+      "weeksPerMonth": 4.333333333333333,
+      "recoveredHoursPerMonth": 10.833333333333332,
+      "recoveredValue": 487.49999999999994,
+      "cashSavings": 0,
+      "reinvestedValue": 0,
+      "unassignedValue": 487.49999999999994,
+      "rows": [
+        [
+          "Admin time value (all hours)",
+          1949.9999999999998
+        ],
+        [
+          "Recovered capacity value",
+          487.49999999999994
+        ],
+        [
+          "Cash savings (only the share you enter)",
+          0
+        ],
+        [
+          "Reinvested in other work (not cash)",
+          0
+        ],
+        [
+          "Recovered but not yet assigned",
+          487.49999999999994
+        ]
+      ]
+    }
+  },
+  "admin/non-default": {
+    "ok": true,
+    "result": {
+      "metric": 1701.375,
+      "capacityValue": 1701.375,
+      "loadedRate": 52.35,
+      "weeksPerMonth": 4.333333333333333,
+      "recoveredHoursPerMonth": 16.25,
+      "recoveredValue": 850.6875,
+      "cashSavings": 212.671875,
+      "reinvestedValue": 212.671875,
+      "unassignedValue": 425.34375,
+      "rows": [
+        [
+          "Admin time value (all hours)",
+          1701.375
+        ],
+        [
+          "Recovered capacity value",
+          850.6875
+        ],
+        [
+          "Cash savings (only the share you enter)",
+          212.671875
+        ],
+        [
+          "Reinvested in other work (not cash)",
+          212.671875
+        ],
+        [
+          "Recovered but not yet assigned",
+          425.34375
+        ]
+      ]
+    }
+  },
+  "admin/zero": {
+    "ok": true,
+    "result": {
+      "metric": 0,
+      "capacityValue": 0,
+      "loadedRate": 0,
+      "weeksPerMonth": 4.333333333333333,
+      "recoveredHoursPerMonth": 0,
+      "recoveredValue": 0,
+      "cashSavings": 0,
+      "reinvestedValue": 0,
+      "unassignedValue": 0,
+      "rows": [
+        [
+          "Admin time value (all hours)",
+          0
+        ],
+        [
+          "Recovered capacity value",
+          0
+        ],
+        [
+          "Cash savings (only the share you enter)",
+          0
+        ],
+        [
+          "Reinvested in other work (not cash)",
+          0
+        ],
+        [
+          "Recovered but not yet assigned",
+          0
+        ]
+      ]
+    }
+  },
+  "admin/error-shares": {
+    "ok": false,
+    "error": "Cash share and reinvested share together cannot exceed 100%."
+  },
+  "hire/default": {
+    "ok": true,
+    "result": {
+      "metric": 6391.666666666667,
+      "onCostPct": 18,
+      "monthlyCost": 6391.666666666667,
+      "billableHours": 131.73333333333332,
+      "employeeCostPerBillableHour": 48.51973684210527,
+      "contractorCost": 0,
+      "contractorCheaper": null,
+      "jobsExact": 35.50925925925926,
+      "jobsNeeded": 36,
+      "extraHours": 90,
+      "rows": [
+        [
+          "On-cost allowance (your figures)",
+          "18%"
+        ],
+        [
+          "Billable hours per month (roster)",
+          "131.7"
+        ],
+        [
+          "Employee cost per billable hour",
+          48.51973684210527
+        ],
+        [
+          "Contractor cost at the same billable hours",
+          "Not entered"
+        ],
+        [
+          "Contractor or employee at these hours",
+          "Not compared (no contractor rate entered)"
+        ],
+        [
+          "Additional jobs/month to cover the cost",
+          36
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
+          "90.0 hours"
+        ]
+      ]
+    }
+  },
+  "hire/non-default": {
+    "ok": true,
+    "result": {
+      "metric": 7989.6325,
+      "onCostPct": 18,
+      "monthlyCost": 7989.6325,
+      "billableHours": 130,
+      "employeeCostPerBillableHour": 61.458711538461536,
+      "contractorCost": 8450,
+      "contractorCheaper": false,
+      "jobsExact": 59.92374184354608,
+      "jobsNeeded": 60,
+      "extraHours": 180,
+      "rows": [
+        [
+          "On-cost allowance (your figures)",
+          "18%"
+        ],
+        [
+          "Billable hours per month (roster)",
+          "130.0"
+        ],
+        [
+          "Employee cost per billable hour",
+          61.458711538461536
+        ],
+        [
+          "Contractor cost at the same billable hours",
+          8450
+        ],
+        [
+          "Contractor or employee at these hours",
+          "Employee cost is lower or equal"
+        ],
+        [
+          "Additional jobs/month to cover the cost",
+          60
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
+          "180.0 hours"
+        ]
+      ]
+    }
+  },
+  "hire/zero-margin": {
+    "ok": true,
+    "result": {
+      "metric": 6200,
+      "onCostPct": 20,
+      "monthlyCost": 6200,
+      "billableHours": 131.73333333333332,
+      "employeeCostPerBillableHour": 47.064777327935225,
+      "contractorCost": 0,
+      "contractorCheaper": null,
+      "jobsExact": null,
+      "jobsNeeded": null,
+      "extraHours": null,
+      "rows": [
+        [
+          "On-cost allowance (your figures)",
+          "20%"
+        ],
+        [
+          "Billable hours per month (roster)",
+          "131.7"
+        ],
+        [
+          "Employee cost per billable hour",
+          47.064777327935225
+        ],
+        [
+          "Contractor cost at the same billable hours",
+          "Not entered"
+        ],
+        [
+          "Contractor or employee at these hours",
+          "Not compared (no contractor rate entered)"
+        ],
+        [
+          "Additional jobs/month to cover the cost",
+          "Not achievable"
+        ],
+        [
+          "Job hours/month needed for those extra jobs",
+          "Not achievable"
+        ]
+      ]
+    }
+  },
+  "hire/error-paid-hours": {
+    "ok": false,
+    "error": "Paid hours each week must be above zero."
+  },
+  "profit/default": {
+    "ok": true,
+    "result": {
+      "metric": 275,
+      "directCost": 375,
+      "contribution": 275,
+      "contributionNoAdjust": 275,
+      "overhead": 0,
+      "netProfit": 275,
+      "netRevenue": 650,
+      "taxInside": 0,
+      "discountAmount": 0,
+      "writeOffAmount": 0,
+      "grossMarginPct": 42.30769230769231,
+      "markupPct": 73.33333333333333,
+      "priceForTarget": 535.7142857142858,
+      "priceForNetTarget": 535.7142857142858,
+      "targetGap": -114.28571428571422,
+      "reconciles": true,
+      "rows": [
+        [
+          "Net revenue (tax removed, discount and write-off applied)",
+          650
+        ],
+        [
+          "Direct costs",
+          375
+        ],
+        [
+          "Contribution before overhead (direct-cost contribution)",
+          275
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
+          275
+        ],
+        [
+          "Overhead allocated",
+          0
+        ],
+        [
+          "Net profit for this job",
+          275
+        ]
+      ]
+    }
+  },
+  "profit/inclusive-discount": {
+    "ok": true,
+    "result": {
+      "metric": 195,
+      "directCost": 375,
+      "contribution": 195,
+      "contributionNoAdjust": 225,
+      "overhead": 40,
+      "netProfit": 155,
+      "netRevenue": 570,
+      "taxInside": 60,
+      "discountAmount": 30,
+      "writeOffAmount": 0,
+      "grossMarginPct": 34.21052631578947,
+      "markupPct": 52,
+      "priceForTarget": 576.9230769230769,
+      "priceForNetTarget": 638.4615384615385,
+      "targetGap": 6.923076923076906,
+      "reconciles": true,
+      "rows": [
+        [
+          "Net revenue (tax removed, discount and write-off applied)",
+          570
+        ],
+        [
+          "Direct costs",
+          375
+        ],
+        [
+          "Contribution before overhead (direct-cost contribution)",
+          195
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
+          225
+        ],
+        [
+          "Overhead allocated",
+          40
+        ],
+        [
+          "Net profit for this job",
+          155
+        ]
+      ]
+    }
+  },
+  "profit/zero-revenue": {
+    "ok": true,
+    "result": {
+      "metric": 0,
+      "directCost": 0,
+      "contribution": 0,
+      "contributionNoAdjust": 0,
+      "overhead": 0,
+      "netProfit": 0,
+      "netRevenue": 0,
+      "taxInside": 0,
+      "discountAmount": 0,
+      "writeOffAmount": 0,
+      "grossMarginPct": null,
+      "markupPct": null,
+      "priceForTarget": 0,
+      "priceForNetTarget": 0,
+      "targetGap": 0,
+      "reconciles": true,
+      "rows": [
+        [
+          "Net revenue (tax removed, discount and write-off applied)",
+          0
+        ],
+        [
+          "Direct costs",
+          0
+        ],
+        [
+          "Contribution before overhead (direct-cost contribution)",
+          0
+        ],
+        [
+          "Scenario: contribution with no discount or write-off",
+          0
+        ],
+        [
+          "Overhead allocated",
+          0
+        ],
+        [
+          "Net profit for this job",
+          0
+        ]
+      ]
+    }
+  },
+  "capacity/default": {
+    "ok": true,
+    "result": {
+      "metric": 208,
+      "theoreticalJobs": 208,
+      "bookableJobs": 208,
+      "spare": 58,
+      "billableHours": 520,
+      "perJobHours": 2.5,
+      "rows": [
+        [
+          "Theoretical jobs/month (hours only)",
+          208
+        ],
+        [
+          "Bookable jobs/month (after buffers, leave, cancellations)",
+          208
+        ],
+        [
+          "Spare (+) or over (-) against current volume",
+          58
+        ]
+      ]
+    }
+  },
+  "capacity/non-default": {
+    "ok": true,
+    "result": {
+      "metric": 220,
+      "theoreticalJobs": 346,
+      "bookableJobs": 220,
+      "spare": 130,
+      "billableHours": 435.55555555555554,
+      "perJobHours": 1.8333333333333333,
+      "rows": [
+        [
+          "Theoretical jobs/month (hours only)",
+          346
+        ],
+        [
+          "Bookable jobs/month (after buffers, leave, cancellations)",
+          220
+        ],
+        [
+          "Spare (+) or over (-) against current volume",
+          130
+        ]
+      ]
+    }
+  },
+  "capacity/error-leave": {
+    "ok": false,
+    "error": "Leave days cannot exceed the available days in a year."
+  },
+  "calls/default": {
+    "ok": true,
+    "result": {
+      "metric": 1512,
+      "missedEnquiries": 14.4,
+      "opportunity": 1512,
+      "recoverable": 0,
+      "recoverableContribution": 0,
+      "commsCost": 0,
+      "netRecoveryContribution": 0,
+      "rows": [
+        [
+          "Missed enquiries per month",
+          "14.4"
+        ],
+        [
+          "Opportunity exposed (before follow-up)",
+          1512
+        ],
+        [
+          "Recoverable if followed up (assumed share)",
+          0
+        ],
+        [
+          "Contribution on the recoverable share",
+          0
+        ],
+        [
+          "External messaging cost",
+          0
+        ],
+        [
+          "Net contribution (assumed, not guaranteed)",
+          0
+        ]
+      ]
+    }
+  },
+  "calls/non-default": {
+    "ok": true,
+    "result": {
+      "metric": 1243.458995625,
+      "missedEnquiries": 10.395,
+      "opportunity": 1243.458995625,
+      "recoverable": 497.38359825,
+      "recoverableContribution": 323.29933886249995,
+      "commsCost": 4.989599999999999,
+      "netRecoveryContribution": 318.30973886249996,
+      "rows": [
+        [
+          "Missed enquiries per month",
+          "10.4"
+        ],
+        [
+          "Opportunity exposed (before follow-up)",
+          1243.458995625
+        ],
+        [
+          "Recoverable if followed up (assumed share)",
+          497.38359825
+        ],
+        [
+          "Contribution on the recoverable share",
+          323.29933886249995
+        ],
+        [
+          "External messaging cost",
+          4.989599999999999
+        ],
+        [
+          "Net contribution (assumed, not guaranteed)",
+          318.30973886249996
+        ]
+      ]
+    }
+  },
+  "leads/default": {
+    "ok": true,
+    "result": {
+      "metric": 547.2000000000005,
+      "baseRate": 0.21600000000000003,
+      "scenRate": 0.22816000000000003,
+      "baseCompleted": 21.6,
+      "scenCompleted": 22.816000000000003,
+      "deltaCompleted": 1.216000000000001,
+      "revenueDelta": 547.2000000000005,
+      "contributionDelta": 547.2000000000005,
+      "direction": "increase",
+      "rows": [
+        [
+          "Baseline lead-to-completed rate",
+          "21.6%"
+        ],
+        [
+          "Scenario lead-to-completed rate",
+          "22.8%"
+        ],
+        [
+          "Completed jobs/month: baseline to scenario",
+          "21.6 to 22.8"
+        ],
+        [
+          "Revenue difference/month",
+          547.2000000000005
+        ],
+        [
+          "Contribution difference/month",
+          547.2000000000005
+        ]
+      ]
+    }
+  },
+  "leads/reduction": {
+    "ok": true,
+    "result": {
+      "metric": -1025.5248000000006,
+      "baseRate": 0.21600000000000003,
+      "scenRate": 0.16065,
+      "baseCompleted": 13.824000000000002,
+      "scenCompleted": 10.2816,
+      "deltaCompleted": -3.5424000000000024,
+      "revenueDelta": -1025.5248000000006,
+      "contributionDelta": -410.2099200000003,
+      "direction": "reduction",
+      "rows": [
+        [
+          "Baseline lead-to-completed rate",
+          "21.6%"
+        ],
+        [
+          "Scenario lead-to-completed rate",
+          "16.1%"
+        ],
+        [
+          "Completed jobs/month: baseline to scenario",
+          "13.8 to 10.3"
+        ],
+        [
+          "Revenue difference/month",
+          -1025.5248000000006
+        ],
+        [
+          "Contribution difference/month",
+          -410.2099200000003
+        ]
+      ]
+    }
+  },
+  "invoice/default": {
+    "ok": true,
+    "result": {
+      "metric": 7488,
+      "billed": 41600,
+      "terms": 30,
+      "outstanding": {
+        "d0_30": 0,
+        "d31_60": 4160,
+        "d61_90": 2080,
+        "d90": 1248
+      },
+      "beyondTerms": 7488,
+      "cashIn13Weeks": 4617.6,
+      "cashIn4Weeks": 2770.56,
+      "cashWeeks5To13": 1847.0400000000004,
+      "notCollectedIn13Weeks": 2870.3999999999996,
+      "chaseHours": 7,
+      "hoursPerThousandBeyondTerms": 0.9348290598290597,
+      "rows": [
+        [
+          "Monthly billing represented",
+          41600
+        ],
+        [
+          "Unpaid 0-30 days",
+          0
+        ],
+        [
+          "Unpaid 31-60 days",
+          4160
+        ],
+        [
+          "Unpaid 61-90 days",
+          2080
+        ],
+        [
+          "Unpaid 90+ days",
+          1248
+        ],
+        [
+          "Expected cash within 4 weeks (your assumptions)",
+          2770.56
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          1847.0400000000004
+        ],
+        [
+          "Expected cash within 13 weeks (your assumptions)",
+          4617.6
+        ]
+      ]
+    }
+  },
+  "invoice/non-default": {
+    "ok": true,
+    "result": {
+      "metric": 4083.75,
+      "billed": 13612.5,
+      "terms": 30,
+      "outstanding": {
+        "d0_30": 2722.5,
+        "d31_60": 2041.875,
+        "d61_90": 1361.25,
+        "d90": 680.625
+      },
+      "beyondTerms": 4083.75,
+      "cashIn13Weeks": 4492.125,
+      "cashIn4Weeks": 2695.275,
+      "cashWeeks5To13": 1796.85,
+      "notCollectedIn13Weeks": 2314.125,
+      "chaseHours": 3.5,
+      "hoursPerThousandBeyondTerms": 0.8570554025099479,
+      "rows": [
+        [
+          "Monthly billing represented",
+          13612.5
+        ],
+        [
+          "Unpaid 0-30 days",
+          2722.5
+        ],
+        [
+          "Unpaid 31-60 days",
+          2041.875
+        ],
+        [
+          "Unpaid 61-90 days",
+          1361.25
+        ],
+        [
+          "Unpaid 90+ days",
+          680.625
+        ],
+        [
+          "Expected cash within 4 weeks (your assumptions)",
+          2695.275
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          1796.85
+        ],
+        [
+          "Expected cash within 13 weeks (your assumptions)",
+          4492.125
+        ]
+      ]
+    }
+  },
+  "admin/oncost": {
+    "ok": true,
+    "result": {
+      "metric": 2537.6,
+      "capacityValue": 2537.6,
+      "loadedRate": 48.8,
+      "weeksPerMonth": 4.333333333333333,
+      "recoveredHoursPerMonth": 15.6,
+      "recoveredValue": 761.28,
+      "cashSavings": 76.12799999999999,
+      "reinvestedValue": 38.06399999999999,
+      "unassignedValue": 647.0880000000001,
+      "rows": [
+        [
+          "Admin time value (all hours)",
+          2537.6
+        ],
+        [
+          "Recovered capacity value",
+          761.28
+        ],
+        [
+          "Cash savings (only the share you enter)",
+          76.12799999999999
+        ],
+        [
+          "Reinvested in other work (not cash)",
+          38.06399999999999
+        ],
+        [
+          "Recovered but not yet assigned",
+          647.0880000000001
+        ]
+      ]
+    }
+  },
+  "invoice/terms": {
+    "ok": true,
+    "result": {
+      "metric": 2850,
+      "billed": 19000,
+      "terms": 45,
+      "outstanding": {
+        "d0_30": 3800,
+        "d31_60": 2850,
+        "d61_90": 1900,
+        "d90": 950
+      },
+      "beyondTerms": 2850,
+      "cashIn13Weeks": 6745,
+      "cashIn4Weeks": 3372.5,
+      "cashWeeks5To13": 3372.5,
+      "notCollectedIn13Weeks": 2755,
+      "chaseHours": 4,
+      "hoursPerThousandBeyondTerms": 1.4035087719298245,
+      "rows": [
+        [
+          "Monthly billing represented",
+          19000
+        ],
+        [
+          "Unpaid 0-30 days",
+          3800
+        ],
+        [
+          "Unpaid 31-60 days",
+          2850
+        ],
+        [
+          "Unpaid 61-90 days",
+          1900
+        ],
+        [
+          "Unpaid 90+ days",
+          950
+        ],
+        [
+          "Expected cash within 4 weeks (your assumptions)",
+          3372.5
+        ],
+        [
+          "Expected cash in weeks 5 to 13 (your assumptions)",
+          3372.5
+        ],
+        [
+          "Expected cash within 13 weeks (your assumptions)",
+          6745
+        ]
+      ]
+    }
+  },
+  "invoice/error-ageing": {
+    "ok": false,
+    "error": "The ageing shares cannot add up to more than 100%."
+  },
+  "quote/none": {
+    "ok": true,
+    "result": {
+      "lines": [
+        {
+          "description": "Gutter clean",
+          "quantity": 1,
+          "unitCents": 24550,
+          "lineCents": 24550
+        },
+        {
+          "description": "Fascia repair",
+          "quantity": 0.75,
+          "unitCents": 32000,
+          "lineCents": 24000
+        },
+        {
+          "description": "Sealant",
+          "quantity": 4,
+          "unitCents": 999,
+          "lineCents": 3996
+        }
+      ],
+      "subtotalCents": 52546,
+      "discountCents": 0,
+      "exTaxCents": 52546,
+      "gstCents": 0,
+      "totalCents": 52546,
+      "taxMode": "none",
+      "taxRate": 10
+    }
+  },
+  "quote/exclusive": {
+    "ok": true,
+    "result": {
+      "lines": [
+        {
+          "description": "Gutter clean",
+          "quantity": 1,
+          "unitCents": 24550,
+          "lineCents": 24550
+        },
+        {
+          "description": "Fascia repair",
+          "quantity": 0.75,
+          "unitCents": 32000,
+          "lineCents": 24000
+        },
+        {
+          "description": "Sealant",
+          "quantity": 4,
+          "unitCents": 999,
+          "lineCents": 3996
+        }
+      ],
+      "subtotalCents": 52546,
+      "discountCents": 5255,
+      "exTaxCents": 47291,
+      "gstCents": 4729,
+      "totalCents": 52020,
+      "taxMode": "exclusive",
+      "taxRate": 10
+    }
+  },
+  "quote/inclusive": {
+    "ok": true,
+    "result": {
+      "lines": [
+        {
+          "description": "Service",
+          "quantity": 1,
+          "unitCents": 0,
+          "lineCents": 0
+        },
+        {
+          "description": "Deep clean",
+          "quantity": 2.5,
+          "unitCents": 18010,
+          "lineCents": 45025
+        },
+        {
+          "description": "Materials",
+          "quantity": 3,
+          "unitCents": 1235,
+          "lineCents": 3705
+        }
+      ],
+      "subtotalCents": 48730,
+      "discountCents": 3655,
+      "exTaxCents": 40977,
+      "gstCents": 4098,
+      "totalCents": 45075,
+      "taxMode": "inclusive",
+      "taxRate": 10
+    }
+  },
+  "quote/error-mode": {
+    "ok": false,
+    "error": "Tax mode must be none, exclusive or inclusive."
+  },
+  "jobcost/default": {
+    "ok": true,
+    "result": {
+      "metric": 407.42,
+      "labour": 183.75,
+      "directCost": 359.45,
+      "contingency": 17.97,
+      "overhead": 30,
+      "totalCost": 407.42,
+      "mileage": 35.7,
+      "materialCost": 120,
+      "materialMarkupValue": 12,
+      "sellPriceMaterials": 132,
+      "price": 480,
+      "margin": 72.58,
+      "marginPct": 15.120833333333334,
+      "targetPrice": 582.03,
+      "rows": [
+        [
+          "Labour",
+          183.75
+        ],
+        [
+          "Materials (at cost)",
+          120
+        ],
+        [
+          "Equipment, mileage and other travel",
+          55.7
+        ],
+        [
+          "Contingency (on direct cost only)",
+          17.97
+        ],
+        [
+          "Allocated overhead",
+          30
+        ],
+        [
+          "Total job cost (ex GST)",
+          407.42
+        ],
+        [
+          "Markup on materials (income inside the price, not cost)",
+          12
+        ],
+        [
+          "Margin at entered price (ex GST)",
+          72.58
+        ]
+      ]
+    }
+  },
+  "jobcost/zero-price": {
+    "ok": true,
+    "result": {
+      "metric": 0,
+      "labour": 0,
+      "directCost": 0,
+      "contingency": 0,
+      "overhead": 0,
+      "totalCost": 0,
+      "mileage": 0,
+      "materialCost": 0,
+      "materialMarkupValue": 0,
+      "sellPriceMaterials": 0,
+      "price": 0,
+      "margin": 0,
+      "marginPct": null,
+      "targetPrice": 0,
+      "rows": [
+        [
+          "Labour",
+          0
+        ],
+        [
+          "Materials (at cost)",
+          0
+        ],
+        [
+          "Equipment, mileage and other travel",
+          0
+        ],
+        [
+          "Contingency (on direct cost only)",
+          0
+        ],
+        [
+          "Allocated overhead",
+          0
+        ],
+        [
+          "Total job cost (ex GST)",
+          0
+        ],
+        [
+          "Markup on materials (income inside the price, not cost)",
+          0
+        ],
+        [
+          "Margin at entered price (ex GST)",
+          0
+        ]
+      ]
+    }
+  },
+  "jobcost/error-roles": {
+    "ok": false,
+    "error": "A job can have at most 50 labour lines."
+  },
+  "cost-to-quote-line": {
+    "ok": true,
+    "result": {
+      "description": "Service",
+      "quantity": 1,
+      "unitPrice": 480.01
+    }
+  },
+  "quote-record/save": {
+    "ok": true,
+    "result": {
+      "quotes": [
+        {
+          "reference": "Q1-A",
+          "version": 1,
+          "savedAt": "2026-11-18T00:00:00.000Z",
+          "consentToStoreCustomer": false,
+          "business": "Biz",
+          "service": "S",
+          "scope": "",
+          "exclusions": "",
+          "terms": "",
+          "customer": "",
+          "validDays": 14,
+          "taxMode": "exclusive",
+          "taxRate": 10,
+          "discountPct": 0,
+          "lines": [
+            {
+              "description": "Service",
+              "quantity": 1,
+              "unitPrice": 0
+            },
+            {
+              "description": "Deep clean",
+              "quantity": 2.5,
+              "unitPrice": 180.1
+            },
+            {
+              "description": "Materials",
+              "quantity": 3,
+              "unitPrice": 12.35
+            }
+          ],
+          "history": []
+        }
+      ],
+      "saved": {
+        "reference": "Q1-A",
+        "version": 1,
+        "savedAt": "2026-11-18T00:00:00.000Z",
+        "consentToStoreCustomer": false,
+        "business": "Biz",
+        "service": "S",
+        "scope": "",
+        "exclusions": "",
+        "terms": "",
+        "customer": "",
+        "validDays": 14,
+        "taxMode": "exclusive",
+        "taxRate": 10,
+        "discountPct": 0,
+        "lines": [
+          {
+            "description": "Service",
+            "quantity": 1,
+            "unitPrice": 0
+          },
+          {
+            "description": "Deep clean",
+            "quantity": 2.5,
+            "unitPrice": 180.1
+          },
+          {
+            "description": "Materials",
+            "quantity": 3,
+            "unitPrice": 12.35
+          }
+        ],
+        "history": []
+      },
+      "history": 0
+    }
+  }
+}

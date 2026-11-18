@@ -9,6 +9,8 @@ on:
       - 'pricing/**'
       - 'assets/**'
       - 'scripts/site-gate.mjs'
+      - 'tests/**'
+      - 'docs/PUBLISHING.md'
       - 'sitemap.xml'
       - 'index.html'
       - '.github/workflows/site-gate.yml'
@@ -22,6 +24,8 @@ on:
       - 'pricing/**'
       - 'assets/**'
       - 'scripts/site-gate.mjs'
+      - 'tests/**'
+      - 'docs/PUBLISHING.md'
       - 'sitemap.xml'
       - 'index.html'
       - '.github/workflows/site-gate.yml'
@@ -37,3 +41,5 @@ jobs:
           node-version: '22'
       - name: Source and published copies, canonicals, sitemap, links, headings, alts, catalogue
         run: node scripts/site-gate.mjs check
+      - name: Gate unit tests, including deliberate drift and sitemap failures
+        run: node --test tests/site-gate-drift.test.mjs tests/site-gate-jsonld.test.mjs tests/frontdesk-grouping.test.mjs
