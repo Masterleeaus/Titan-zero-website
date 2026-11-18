@@ -127,6 +127,59 @@ for (const [page, tab] of [
   check('non-calculator page writes no profile', r.stored.length === 0, r.stored.join(','));
 }
 
+// 9. Job-cost sheet to quote builder (#106): the send button carries the price only. Business and
+// service text typed into the job-cost form must not reach storage or the quote line.
+function openPage(page, url, storage = {}) {
+  const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/gi, ''), { url, runScripts: 'outside-only', pretendToBeVisual: true });
+  const { window } = dom;
+  window.HTMLFormElement.prototype.reportValidity = function reportValidity() { return this.checkValidity(); };
+  window.print = () => {};
+  window.confirm = () => true;
+  window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
+  for (const [key, value] of Object.entries(storage)) window.localStorage.setItem(key, value);
+  for (const script of ['assets/site-data.js', 'assets/site.js', 'assets/tools-engine.js', 'assets/tools.js']) {
+    const tag = new RegExp('src="/' + script.replace(/[.]/g, '\\.') + '\\?');
+    if (tag.test(html)) window.eval(fs.readFileSync(path.join(ROOT, script), 'utf8'));
+  }
+  return window;
+}
+{
+  const jobWindow = openPage('pages/tool-job-cost-sheet.html', 'https://titanzero.io/tools/job-cost-sheet/');
+  const doc = jobWindow.document;
+  doc.querySelector('[name=business]').value = 'PRIVATE-BUSINESS';
+  doc.querySelector('[name=service]').value = 'PRIVATE-SERVICE';
+  doc.querySelector('[name=price]').value = '300';
+  doc.querySelector('[data-job-cost-form]').dispatchEvent(new jobWindow.Event('submit', { bubbles: true, cancelable: true }));
+  const send = [...doc.querySelectorAll('button')].find((b) => b.textContent === 'Send price to the quote builder');
+  check('job-cost result offers a send button', Boolean(send));
+  send?.dispatchEvent(new jobWindow.Event('click', { bubbles: true }));
+  const transfer = jobWindow.localStorage.getItem('titanQuoteTransferV1') || '';
+  check('transfer holds the ex-GST price', /"unitPrice":300/.test(transfer), transfer.slice(0, 160));
+  check('transfer holds no business or service text', !/PRIVATE/.test(transfer), transfer.slice(0, 160));
+
+  const quoteWindow = openPage('pages/tool-quote-builder.html', 'https://titanzero.io/tools/quote-builder/', { titanQuoteTransferV1: transfer });
+  const priceInput = quoteWindow.document.querySelector('[data-quote-lines] [name=line-price]');
+  check('quote builder adds the sent price as a line', Boolean(priceInput) && priceInput.value === '300', priceInput ? priceInput.value : 'no line');
+  check('quote builder reads the transfer once', quoteWindow.localStorage.getItem('titanQuoteTransferV1') === null);
+}
+
+// 10. Assumptions file (#106): the download button reports the numbers it saved.
+{
+  const r = run('pages/tool-admin-cost.html', { fields: { adminHours: 12 } });
+  const exportWindow = r.window;
+  exportWindow.URL.createObjectURL = () => 'blob:titan-test';
+  exportWindow.URL.revokeObjectURL = () => {};
+  let downloaded = '';
+  exportWindow.HTMLAnchorElement.prototype.click = function click() { downloaded = this.download; };
+  const exportButton = exportWindow.document.querySelector('.assumptions-tools button');
+  check('assumptions file has a download button', Boolean(exportButton));
+  exportButton?.dispatchEvent(new exportWindow.Event('click', { bubbles: true }));
+  const status = exportWindow.document.querySelector('.assumptions-tools [role=status]')?.textContent || '';
+  check('download reports the saved values', /Downloaded \d+ saved values for/.test(status), status);
+  check('download file is named for the service type', downloaded === 'titan-tool-assumptions-cleaning.json', downloaded);
+}
+
 // 7. Checklist generator (#33): drafts persist across a reload, a corrupt draft falls back to the
 // template, the text download is local, and markup typed into a task stays plain text.
 function runChecklist(rawDraft = null) {
