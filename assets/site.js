@@ -555,17 +555,18 @@ clearDraft();
 });
 enquiry.addEventListener('change',clearDraft);
 function prepare(){
-['name','message'].forEach((name)=>{
-const field=enquiry.elements.namedItem(name);
-field.setCustomValidity(field.value.trim()?'':'Please enter more than spaces.');
-});
+const emailField=enquiry.elements.namedItem('email');
+const emailValue=emailField.value.trim();
+emailField.setCustomValidity(!emailValue?'Reply email: enter the address we should reply to, for example name@yourbusiness.com.au.':emailField.validity.typeMismatch?'Reply email: check the address. It needs an @ and a domain, for example name@yourbusiness.com.au.':'');
+const messageField=enquiry.elements.namedItem('message');
+messageField.setCustomValidity(messageField.value.trim()?'':'What are you trying to improve? Write a sentence or two in the box.');
 if(!enquiry.reportValidity())return null;
 const get=(name,limit)=>String(new FormData(enquiry).get(name)||'').trim().slice(0,limit);
 const topic=appSelect.selectedOptions[0].textContent;
 const level=levelSelect.selectedOptions[0].textContent;
 const body=[
 'Hello Titan Zero,','','I would like to discuss '+topic+'.','',
-'Name: '+get('name',100),'Business: '+(get('business',160)||'Not specified'),
+'Name: '+(get('name',100)||'Not given'),
 'Reply email: '+get('email',200),...(calculatorState?[]:['Operating level: '+level]),
 ...context,'','What I would like to improve:',get('message',2000),'','Thank you.'
 ].join('\n');
