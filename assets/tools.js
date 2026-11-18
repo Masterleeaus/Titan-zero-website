@@ -225,6 +225,7 @@ fieldsElement.addEventListener('change',syncModeFields);
 root.addEventListener('toolverticalchange',draw);
 draw();
 addAssumptionsTools(root);
+offerProfitHandoff(root);
 }
 // Portable assumptions file (#106). Numbers for the active service type only. Import is all-or-nothing:
 // the engine refuses the whole file on any problem, and the values are applied only after the user confirms.
@@ -290,6 +291,25 @@ note.setAttribute('role','status');
 const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Use the Service pricing figures';
 button.addEventListener('click',()=>apply(figures));
 box.replaceChildren(note,button);box.hidden=false;
+}
+// Job profitability (#26): offers the Service pricing figures and fills the inputs only after a click.
+// Revenue is the target price (ex GST). Labour is hours x rate; travel includes equipment. Contingency is
+// not applied, because this calculator has no contingency line. Discount and write-off stay as entered.
+function offerProfitHandoff(root){
+const box=root.querySelector('[data-pricing-handoff]');
+if(!box||!root.querySelector('#tool-jobRevenue'))return;
+offerPricingHandoff(box,calcs(),(figures)=>{
+const set=(key,value)=>{const el=root.querySelector('#tool-'+key);if(el)el.value=String(value);};
+set('taxMode','exclusive');
+if(typeof figures.targetPrice==='number')set('jobRevenue',figures.targetPrice);
+set('labour',Math.round(figures.labourHours*figures.labourRate*100)/100);
+set('materials',figures.materials);
+set('travel',Math.round((figures.travel+figures.equipment)*100)/100);
+set('overhead',figures.overhead);
+let status=box.querySelector('[data-handoff-status]');
+if(!status){status=textNode('p','','fine-print');status.dataset.handoffStatus='1';status.setAttribute('role','status');box.append(status);}
+status.textContent='Figures filled in. Contingency is not applied here. Check them, then press Calculate.';
+});
 }
 function initializeQuoteBuilder(root){
 const calc=engine.formulas;
