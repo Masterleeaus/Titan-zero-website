@@ -1,0 +1,65 @@
+{
+  "version": "2026-11-18",
+  "source": "Central Front Desk copy for vertical sections and FAQs (issue #8). Built into pages/frontdesk.html by scripts/build-frontdesk-verticals.mjs. Feature status comes from docs/FRONTDESK-SUPPORT-STATUS.md and assets/upgrade-catalogue.json. Free-plugin feature claims still need checking against the released plugin build.",
+  "verticals": [
+    {
+      "id": "cleaning",
+      "label": "Cleaning",
+      "text": "The booking form, calendars and customer records work on the free plugin. When the Assistant is available, it can answer questions about your services and draft quotes for you to review."
+    },
+    {
+      "id": "trades",
+      "label": "Trades",
+      "text": "Set working hours and staff capacity for callouts on the free plugin. When the Agent Team is available, it can collect job details for quote intake, and you approve every quote before it goes out."
+    },
+    {
+      "id": "handyman",
+      "label": "Handyman and property maintenance",
+      "text": "Bookings, reminders and customer notes work on the free plugin. When the Assistant is available, it can guide a customer to a booking time within your rules."
+    },
+    {
+      "id": "gardening",
+      "label": "Gardening and landscaping",
+      "text": "A service catalogue and calendar rules for each staff member or crew work on the free plugin. When the Assistant is available, it can answer enquiries using the service information you enter."
+    },
+    {
+      "id": "beauty",
+      "label": "Beauty and personal services",
+      "text": "Appointments, reminders and a client portal where customers view, change or cancel bookings work on the free plugin. When the Agent Team is available, it can send follow-ups only to clients who have agreed to them."
+    },
+    {
+      "id": "mobile",
+      "label": "Mobile services",
+      "text": "Local customer records, including addresses and notes, work on the free plugin. When the Agent Team is available, its bookings follow the same calendar and capacity rules you set."
+    }
+  ],
+  "approvals": [
+    "Local booking features keep working whether or not a hosted AI service is connected.",
+    "Hosted AI runs only after you connect it and allow it in the plugin.",
+    "Planned: quotes drafted by the Agent Team go out only after you approve them.",
+    "Planned: the Assistant and Agent Team propose booking times within your rules. You approve a booking before it is confirmed.",
+    "Planned: follow-up messages go only to customers who have agreed to receive them."
+  ],
+  "faqs": [
+    {
+      "question": "Who owns the booking and customer data?",
+      "answer": "You do. Booking, customer and reporting data is stored in your WordPress database. Titan Zero does not receive that data unless you connect a hosted AI service and allow it."
+    },
+    {
+      "question": "Can I export my data?",
+      "answer": "This version has no export tool described on this page. Because the data is in your own WordPress database, your usual WordPress backup and database tools can read it. Ask support@titanzero.io before you rely on a specific export."
+    },
+    {
+      "question": "What happens to hosted AI if I stop paying for it?",
+      "answer": "Stopping a hosted AI subscription returns the site to the free AI allowance. Bookings, calendars and customer records do not depend on the Assistant or the Agent Team."
+    },
+    {
+      "question": "How do I stop using Front Desk?",
+      "answer": "This page does not describe how stored data is handled when the plugin is removed. Ask support@titanzero.io before you remove the plugin from a live site, so you can keep what you need."
+    },
+    {
+      "question": "What does each AI service cost?",
+      "answer": "The Assistant is A$29 per month, and the Agent Team is A$99 per month, both including GST. The Agent Team includes the Assistant. Both are in development and not yet available to buy."
+    }
+  ]
+}

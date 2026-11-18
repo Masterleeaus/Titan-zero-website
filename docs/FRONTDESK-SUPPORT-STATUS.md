@@ -10,6 +10,7 @@ Version data: `assets/upgrade-catalogue.json` (version 2026-11-18). That file is
 | Plugin compatibility and upgrades | Not covered | none | Open. Needs verified version and WordPress requirements. |
 | Hosted AI Assistant opt-in | Hub privacy section and FAQ | `/frontdeskai/` | In development. Not available to buy. |
 | Agent Team permissions | Hub services table | `/frontdeskagent/` | In development. Not available to buy. |
+| Data ownership, export and ending | Hub FAQ, built from `assets/frontdesk-content.json` (issue #8) | `/frontdesk/` | Partly covered. No export tool is described. Removal behaviour is not described. |
 | Privacy and consent | Hub privacy section | `/terms/`, `/fair-use/` | Partly covered. No Front Desk-specific consent page. |
 | Billing cancellation | Not covered | none | Open. No billing is live. |
 | Troubleshooting | Hub FAQ only | none | Open. |
