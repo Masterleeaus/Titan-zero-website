@@ -204,6 +204,20 @@ draw();
 }
 document.querySelectorAll('[data-tools-app]').forEach(initializeCalculator);
 const QUOTE_TAX_TEXT={none:'No GST applied on this quote.',exclusive:'Prices exclude GST. GST is added on top.',inclusive:'Prices include GST. GST is shown inside the total.'};
+// Offers the figures saved by Service pricing, but only when the user clicks. The saved figures are
+// read through the calc parser, so a damaged or hand-edited value is ignored and nothing is shown.
+function offerPricingHandoff(box,calc,apply){
+if(!box||!calc||typeof calc.parsePricingHandoff!=='function')return;
+let figures=null;
+try{figures=calc.parsePricingHandoff(localStorage.getItem(calc.PRICING_HANDOFF_KEY));}catch(_){figures=null;}
+if(!figures)return;
+const label=figures.role?'for '+figures.role:'from your last calculation';
+const note=textNode('p',`Service pricing figures ${label} are saved on this device. They exclude GST. Nothing is uploaded.`,'fine-print');
+note.setAttribute('role','status');
+const button=document.createElement('button');button.type='button';button.className='button button-secondary';button.textContent='Use the Service pricing figures';
+button.addEventListener('click',()=>apply(figures));
+box.replaceChildren(note,button);box.hidden=false;
+}
 function initializeQuoteBuilder(root){
 const calc=globalThis.TitanToolCalcs;
 const form=root.querySelector('[data-quote-form]'),lines=root.querySelector('[data-quote-lines]'),output=root.querySelector('[data-quote-result]');
@@ -211,6 +225,12 @@ if(!form||!lines||!output||!calc)return;
 const status=root.querySelector('[data-quote-status]'),savedSelect=root.querySelector('[data-quote-saved]');
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+f('service').value=figures.role||f('service').value;
+f('taxMode').value='exclusive';
+lines.replaceChildren();addLine('Service from pricing tool',1,figures.targetPrice);
+render();say('Figures from Service pricing added. Prices exclude GST; check the scope and quantities before you save.');
+});
 let version=0;
 const say=(text)=>{if(status)status.textContent=text;};
 function readStore(){try{const s=JSON.parse(localStorage.getItem(calc.QUOTE_STORE_KEY)||'{}');return{quotes:Array.isArray(s.quotes)?s.quotes:[]};}catch(_){return{quotes:[]};}}
@@ -321,6 +341,12 @@ const form=root.querySelector('[data-job-cost-form]'),output=root.querySelector(
 if(!form||!output||!roles||!calc)return;
 const f=(name)=>form.elements.namedItem(name);
 f('business').value=profile.businessName;f('service').value=profile.serviceName;
+offerPricingHandoff(root.querySelector('[data-pricing-handoff]'),calc,(figures)=>{
+roles.replaceChildren();addRole(figures.role||'Labour',figures.labourHours,figures.labourRate);
+f('materials').value=figures.materials;f('materialMarkupPct').value=0;f('equipment').value=figures.equipment;
+f('km').value=0;f('kmRate').value=0;f('travel').value=figures.travel;f('overhead').value=figures.overhead;
+f('contingencyPct').value=figures.contingencyPct;f('target').value=figures.targetMarginPct;f('price').value=figures.targetPrice;
+});
 function addRole(name='',hours=1,rate=0){
 const row=document.createElement('div');row.className='quote-line-row';
 const wrap=(label,input)=>{const l=document.createElement('label');l.textContent=label;l.append(input);return l;};

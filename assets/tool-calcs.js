@@ -587,7 +587,35 @@
     return { total, done, complete: total > 0 && done === total };
   }
 
+  // ---------------------------------------------------------------- #34 pricing handoff
+  // Figures saved by Service pricing (planner-ui.js). The Quote Builder and Job Cost Sheet read them
+  // back as untrusted input: anything out of range or of the wrong type gives null and is not offered.
+  const PRICING_HANDOFF_KEY = 'titanPricingHandoffV1';
+  function parsePricingHandoff(raw) {
+    let saved;
+    try { saved = JSON.parse(raw); } catch (_) { return null; }
+    if (!saved || typeof saved !== 'object') return null;
+    const money = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1000000 ? Math.round(x * 100) / 100 : null);
+    const pct = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 99.99 ? x : null);
+    const hours = (x) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 10000 ? x : null);
+    const figures = {
+      role: typeof saved.role === 'string' ? saved.role.trim().slice(0, 80) : '',
+      labourHours: hours(saved.labourHours),
+      labourRate: money(saved.labourRate),
+      materials: money(saved.materials),
+      travel: money(saved.travel),
+      equipment: money(saved.equipment),
+      overhead: money(saved.overhead),
+      contingencyPct: pct(saved.contingencyPct),
+      targetMarginPct: pct(saved.targetMarginPct),
+      targetPrice: money(saved.targetPrice)
+    };
+    return Object.values(figures).some(value => value === null) ? null : figures;
+  }
+
   const api = {
+    PRICING_HANDOFF_KEY,
+    parsePricingHandoff,
     WEEKS_PER_MONTH,
     adminCost,
     hiringCost,

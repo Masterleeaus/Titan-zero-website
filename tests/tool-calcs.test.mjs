@@ -524,3 +524,44 @@ test('checklist: all ten shipped industries have a template in site-data', () =>
   assert.equal(ids.length, 10);
   for (const id of ids) assert.ok(Array.isArray(data.checklists[id]) && data.checklists[id].length > 0, id + ' template');
 });
+
+// ---- #34 pricing handoff: figures saved by Service pricing and read back by the Quote Builder and Job Cost Sheet
+const savedPricing = {
+  savedAt: '2026-11-18T00:00:00.000Z', role: 'Technician', labourHours: 2, labourRate: 45, materials: 20.5, travel: 10,
+  equipment: 5, overhead: 12.25, contingencyPct: 10, targetMarginPct: 30, targetPrice: 186.35
+};
+
+test('pricing handoff (#34): a valid saved figure set is read back with cents and a trimmed role', () => {
+  const figures = C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: '  Technician  ' }));
+  assert.equal(figures.role, 'Technician');
+  assert.equal(figures.labourHours, 2);
+  assert.equal(figures.targetPrice, 186.35);
+  assert.equal(figures.overhead, 12.25);
+});
+
+test('pricing handoff (#34): missing, corrupt or non-object saves give null', () => {
+  assert.equal(C.parsePricingHandoff(null), null);
+  assert.equal(C.parsePricingHandoff('{bad'), null);
+  assert.equal(C.parsePricingHandoff('42'), null);
+  assert.equal(C.parsePricingHandoff('null'), null);
+});
+
+test('pricing handoff (#34): any figure out of range or of the wrong type makes the whole save unusable', () => {
+  const cases = [
+    { targetPrice: -1 }, { targetPrice: 1000001 }, { labourRate: 'forty' }, { materials: Number.NaN },
+    { contingencyPct: 100 }, { targetMarginPct: 100 }, { labourHours: 10001 }, { travel: null }
+  ];
+  for (const change of cases) {
+    const raw = JSON.stringify({ ...savedPricing, ...change });
+    assert.equal(C.parsePricingHandoff(raw), null, JSON.stringify(change));
+  }
+});
+
+test('pricing handoff (#34): a role over 80 characters is capped and a non-text role becomes empty', () => {
+  assert.equal(C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: 'r'.repeat(200) })).role.length, 80);
+  assert.equal(C.parsePricingHandoff(JSON.stringify({ ...savedPricing, role: 7 })).role, '');
+});
+
+test('pricing handoff (#34): the storage key is versioned', () => {
+  assert.equal(C.PRICING_HANDOFF_KEY, 'titanPricingHandoffV1');
+});
