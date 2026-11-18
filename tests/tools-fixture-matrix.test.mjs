@@ -18,8 +18,15 @@ const BASE = {
   profit: { jobRevenue: 650, labour: 220, materials: 110, travel: 45 },
   capacity: { workers: 4, hours: 30, duration: 2.5, currentJobs: 150 },
   calls: { calls: 120, missed: 12, convert: 30, jobValue: 350 },
-  leads: { leads: 100, current: 20, target: 23, value: 450 },
-  invoice: { invoices: 80, avg: 520, overdue: 18, chase: 7 },
+  leads: {
+    leads: 100, value: 450, contribPct: 100,
+    base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80,
+    alt_contacted: 92, alt_qualified: 50, alt_booked: 62, alt_completed: 80,
+  },
+  invoice: {
+    invoices: 80, avg: 520, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3,
+    collect_d0_30: 95, collect_d31_60: 80, collect_d61_90: 50, collect_d90: 20, chase: 7,
+  },
 };
 const BAD_TEXT = ['', '   ', 'abc', 'NaN', 'Infinity', '-Infinity', '1e400'];
 
@@ -90,10 +97,12 @@ test('fixture: job cost sheet baseline keeps costs and price separate and refuse
   const base = { workers: 2, hours: 2, rate: 45, materials: 0, travel: 0, other: 0, overhead: 0, price: 300, target: 30 };
   assert.equal(E.validate('jobcost', base).ok, true);
   assert.equal(E.validate('jobcost', { ...base, rate: NaN }).ok, false);
-  const out = E.jobCost(E.validate('jobcost', base).values);
-  assert.equal(out.direct, 180);
-  assert.equal(out.total, 180);
-  assert.equal(out.contribution, 120);
-  assert.equal(out.targetPrice, 257.14);
+  // Two workers for 2 hours at A$45 is one labour line of 4 hours (#104: engine.formulas.jobCostSheet).
+  const out = E.formulas.jobCostSheet({ roles: [{ hours: 4, rate: 45 }], materials: 0, travel: 0, equipment: 0, overhead: 0, price: 300, targetMarginPct: 30 });
+  assert.equal(out.directCost, 180);
+  assert.equal(out.totalCost, 180);
+  assert.equal(out.margin, 120);
+  // Target price is rounded up to the cent, as the service pricing tool does (#32). 180 / 0.7 = 257.142...
+  assert.equal(out.targetPrice, 257.15);
   assert.ok(Object.keys(rules).every((k) => k in base));
 });
