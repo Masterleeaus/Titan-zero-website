@@ -20,12 +20,14 @@ All rates, shares and costs are entered by the user. No statutory rate, price, R
 | #27 | tool-capacity-planner | Theoretical and bookable jobs; leave, days, non-billable time, travel buffer, cancellations. Zero and negative duration refused. | No staff/skill coverage; no link to ScheduledAt.Work. Route feasibility not inferred. |
 | #28 | tool-missed-calls | Opportunity (unchanged default), recoverable share, contribution, messaging cost. Results labelled assumed, not guaranteed. | No weighted scenarios; no channel split; no product link. |
 | #29 | tool-lead-conversion | Four-stage funnel (contacted, qualified, booked, completed), baseline vs scenario, revenue and contribution. Over-100 refused, negative uplift shown as reduction. | Simple single-rate mode removed; no product link. |
-| #30 | tool-invoice-collection | Ageing buckets (0-30, 31-60, 61-90, 90+), 13-week expected cash from user collection shares. Not guaranteed; collection is not revenue. | No invoice due dates; no cash-flow link; simple mode removed. |
+| #30 | tool-invoice-collection | Ageing buckets (0-30, 31-60, 61-90, 90+), payment terms in days (default 30) deciding which buckets are beyond terms, 13-week expected cash split into weeks 1-4 and 5-13 by one user share, hours per A$1,000 beyond terms, link to the 13-week cash flow forecast. Not guaranteed; collection is not revenue. | No real invoice dates or per-invoice schedule; the 4-week share is one assumption; no separate simple-mode toggle (the first inputs are the simple entry). |
 | #31 | tool-quote-builder | Quote reference, validity, scope, exclusions, terms, GST modes (none, exclusive, inclusive), cent rounding, local save with versions, reopen, delete, JSON download, print. Customer name stored only with consent. | Only single-user local storage; no PDF file generation beyond print. |
 | #32 | tool-job-cost-sheet | Multiple labour lines, materials with markup, equipment, mileage, travel, contingency, overhead, target price. Costs kept separate from GST and price. | No live transfer to the quote builder (`costToQuoteLine` is ready). |
 | #33 | tool-checklist-generator | Stable task keys; ticks, notes and custom tasks survive re-rendering and template revisions; reorder, edit, remove; local draft; explicit confirmation before a service-type switch; sign-off note; print. | No file export; the site has 10 industries, not 11. |
 
 ## Decisions made without asking
+- #30: a bucket counts as beyond terms only when it starts after the terms day, so a bucket that straddles the due day is not counted. Default terms are 30 days, which keeps the 31+ day rule.
+- #30: "simple mode" is kept as the first inputs (invoices, average, ageing shares, hours). New terms and cash-timing inputs have defaults, so the simple entry still works without changes.
 - Admin cash share defaults to 0 so no cash saving is counted until the user enters one.
 - Missed-call reach defaults to 0 so no recovery is assumed by default.
 - Lead and invoice stage/collection defaults are starter values for illustration; the page says so.
