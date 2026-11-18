@@ -34,7 +34,7 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   window.alert = (message) => alerts.push(String(message));
   for (const [key, value] of Object.entries(storage)) window.localStorage.setItem(key, JSON.stringify(value));
   const errors = [];
-  for (const script of ['assets/site-data.js', 'assets/site.js', 'assets/tool-calcs.js', 'assets/tools-engine.js', 'assets/tools.js']) {
+  for (const script of ['assets/site-data.js', 'assets/site.js', 'assets/tools-engine.js', 'assets/tools.js']) {
     const tag = new RegExp('src="/' + script.replace(/[.]/g, '\\.') + '\\?');
     if (!tag.test(html)) continue;
     try { window.eval(fs.readFileSync(path.join(ROOT, script), 'utf8')); } catch (error) { errors.push(script + ': ' + error.message); }
