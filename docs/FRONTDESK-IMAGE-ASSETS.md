@@ -2,6 +2,19 @@
 
 Status as of 2026-11-18. Source of truth for what images the Front Desk pages use.
 
+## Concept images added (issue #6)
+
+| Page | Image files | Source | Licence |
+|---|---|---|---|
+| `pages/frontdeskai.html` | `assets/frontdesk-ai-concept-{640,960,1280}.webp` | `docs/frontdesk-images-src/assistant-concept.html`, rendered in headless Chrome | Original work by this repository. No third-party assets. |
+| `pages/frontdeskagent.html` | `assets/frontdesk-agent-concept-{640,960,1280}.webp` | `docs/frontdesk-images-src/agent-team-concept.html`, rendered in headless Chrome | Original work by this repository. No third-party assets. |
+
+- Both are labelled "Conceptual demonstration" in the caption and in the image. They show a planned pattern, not a live product screen.
+- Colours: AI teal `#00CFD2` for the Assistant, Agent violet `#A648F9` for the Agent Team, deep blue `#286cdc` for the primary button and the Free plugin.
+- Pro: `pages/frontdeskpro.html` says Front Desk Pro is no longer offered, so it gets no image. The "Pro deep blue" colour is applied to the free plugin.
+- Snapshots of the Assistant page at 1280 px and 390 px are in `docs/qa/snapshots/`. Built on 2026-11-18.
+- Still missing: verified UI captures of Front Desk Free from a released plugin build. No WordPress install or released build was available when these were made.
+
 ## What the pages use
 
 | Page | Images | Notes |
