@@ -65,3 +65,19 @@ test('invoice follow-up guide links to the quote follow-up guide (issue 84)', ()
   assert.match(read('pages/article-invoice-follow-up.html'), /href="\/resources\/quote-follow-up\/"/);
   assert.match(read('sitemap.xml'), /resources\/quote-follow-up\//);
 });
+
+test('profile photo guide covers leave-out rules, consent form, removal and APP 7 wording (issue 88)', () => {
+  const t = text(read('pages/article-google-profile-photos.html'));
+  assert.match(t, /Faces, including the customer/);
+  assert.match(t, /House numbers, street names/);
+  assert.match(t, /Customer photo consent/);
+  assert.match(t, /When a customer asks you to remove a photo/);
+  assert.match(t, /Australian Privacy Principle 7 \(APP 7\)/);
+  assert.match(t, /Privacy Act 1988/);
+  assert.match(t, /Pending legal review/);
+});
+
+test('profile photo guide is linked from the resources hub and sitemap (issue 88)', () => {
+  assert.match(read('pages/resources.html'), /href="\/resources\/google-profile-photos\/"/);
+  assert.match(read('sitemap.xml'), /resources\/google-profile-photos\//);
+});
