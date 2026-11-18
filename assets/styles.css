@@ -30,3 +30,5 @@
 /* #110: on phone widths, long words such as brand names may break so that text cannot push the page wider than the screen. */
 @media (max-width:600px){h1,h2,h3,h4,h5,p,li,a,span,strong,small,em,b,label,legend,dt,dd,td,th,figcaption,summary,button{overflow-wrap:anywhere}}
 /* #112: brand colours stay for fills, borders and emblems. Text and small icons use a lighter tint of the same hue, which meets WCAG AA (4.5:1) on the dark backgrounds. */
+/* #111: the consent checkbox keeps its size inside the custom tool forms, so its label stays beside it instead of being pushed past the right edge at 768px. */
+.custom-tool-form .check-card input[type=checkbox]{width:22px;min-height:22px;height:22px;flex:0 0 22px}
