@@ -57,6 +57,19 @@
     count: (label, min = 0) => ({ kind: 'number', label, min, max: MAX_COUNT }),
   };
 
+  // Funnel stages and ageing buckets used by the live forms (#105). Defined before RULES, which reads them.
+  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
+  const FUNNEL_LABELS = {
+    contacted: 'leads contacted', qualified: 'contacted leads qualified',
+    booked: 'qualified leads booked', completed: 'booked jobs completed',
+  };
+  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
+  const AGEING_LABELS = {
+    d0_30: 'Unpaid from this month (0-30 days)', d31_60: 'Unpaid 31-60 days',
+    d61_90: 'Unpaid 61-90 days', d90: 'Unpaid over 90 days',
+  };
+  const COLLECT_LABELS = { d0_30: '0-30 days', d31_60: '31-60 days', d61_90: '61-90 days', d90: '90+ days' };
+
   const RULES = {
     admin: {
       adminHours: rule.number('Admin hours each week', 0, 168),
@@ -90,16 +103,20 @@
       convert: rule.percent('Likely conversion if answered'),
       jobValue: rule.money('Average job value'),
     },
+    // Lead conversion and invoice collection use the live four-stage funnel and ageing buckets (#105).
+    // Labels match the visible form fields so refusal messages name what the user sees.
     leads: {
       leads: rule.count('Leads per month'),
-      current: rule.percent('Current conversion'),
-      target: rule.percent('Scenario conversion'),
       value: rule.money('Average customer/job value'),
+      contribPct: rule.percent('Contribution margin on that work'),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['base_' + stage, rule.percent('Current: ' + FUNNEL_LABELS[stage])])),
+      ...Object.fromEntries(FUNNEL_STAGES.map((stage) => ['alt_' + stage, rule.percent('Scenario: ' + FUNNEL_LABELS[stage])])),
     },
     invoice: {
       invoices: rule.count('Invoices per month'),
       avg: rule.money('Average invoice'),
-      overdue: rule.percent('Beyond-terms share'),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['age_' + bucket, rule.percent(AGEING_LABELS[bucket])])),
+      ...Object.fromEntries(AGEING_BUCKETS.map((bucket) => ['collect_' + bucket, rule.percent('Expected collection within 13 weeks: ' + COLLECT_LABELS[bucket])])),
       chase: rule.number('Hours/month chasing payment', 0, 744),
     },
     jobcost: {
@@ -266,12 +283,18 @@
     };
   }
 
+  // Live four-stage funnel (#105): the lead-to-completed rate is the product of the stage shares.
+  function funnelShare(v, prefix) {
+    return FUNNEL_STAGES.reduce((rate, stage) => rate * v[prefix + '_' + stage] / 100, 1);
+  }
   function leads(v) {
-    const cents = safeCents(Math.round(v.leads * (v.target - v.current) / 100 * toCents(v.value)));
+    const baseRate = funnelShare(v, 'base');
+    const scenRate = funnelShare(v, 'alt');
+    const cents = safeCents(Math.round(v.leads * (scenRate - baseRate) * toCents(v.value)));
     return {
       status: 'ok', metric: fromCents(cents), format: 'currency',
       label: 'Scenario revenue difference/month',
-      math: v.leads + ' leads × (' + v.target + '% − ' + v.current + '%) × ' + formatMoney(v.value),
+      math: v.leads + ' leads × (' + (scenRate * 100).toFixed(1) + '% − ' + (baseRate * 100).toFixed(1) + '%) × ' + formatMoney(v.value),
       notes: [
         'This shows what the selected conversion change would be worth.',
         'It does not claim that software, marketing or AI will cause that improvement.',
@@ -279,13 +302,15 @@
     };
   }
 
+  // Beyond terms means unpaid 31 days or more (#105): the 31-60, 61-90 and 90+ buckets.
   function invoice(v) {
     const billedCents = safeCents(v.invoices * toCents(v.avg));
-    const overdueCents = safeCents(Math.round(billedCents * v.overdue / 100));
+    const beyondShare = AGEING_BUCKETS.filter((b) => b !== 'd0_30').reduce((sum, b) => sum + v['age_' + b], 0);
+    const overdueCents = safeCents(Math.round(billedCents * beyondShare / 100));
     return {
       status: 'ok', metric: fromCents(overdueCents), format: 'currency',
       label: 'Value typically beyond terms',
-      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + v.overdue + '%',
+      math: v.invoices + ' × ' + formatMoney(v.avg) + ' × ' + beyondShare + '%',
       notes: [
         'Monthly invoicing represented: ' + formatMoney(fromCents(billedCents)) + '.',
         v.chase + ' hours/month are also spent on collection activity.',
@@ -321,8 +346,6 @@
   // ---- Local profile schema (#43/#44) -------------------------------------------
   // Every assumption a live tool persists must survive migration. These are the extra
   // fields on the public tool forms (shares, rates, ageing buckets, funnel stages).
-  const FUNNEL_STAGES = ['contacted', 'qualified', 'booked', 'completed'];
-  const AGEING_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'd90'];
   const EXTRA_ASSUMPTION_KEYS = [
     'reclaimPct', 'cashPct', 'reinvestPct', 'oncostPct', 'superPct', 'leavePct', 'paidHours', 'utilisationPct',
     'jobHours', 'contractorRate', 'taxRate', 'discountPct', 'overhead', 'targetMarginPct',

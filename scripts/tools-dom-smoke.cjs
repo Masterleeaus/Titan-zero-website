@@ -87,6 +87,15 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('three-decimal money refused', /at most two decimal places/.test(money.result), money.result.slice(0, 120));
 }
 
+// 3b. Live funnel and ageing forms (#105): the shared rules refuse one input on each page.
+// The values pass the browser's own min/max checks, so the engine is what refuses them.
+{
+  const leads = run('pages/tool-lead-conversion.html', { tab: 'leads', fields: { leads: 2000000 } });
+  check('lead conversion refuses a lead count above the engine limit', /Leads per month must be between 0 and 1000000/.test(leads.result), leads.result.slice(0, 120));
+  const invoice = run('pages/tool-invoice-collection.html', { tab: 'invoice', fields: { avg: 0.005 } });
+  check('invoice collection refuses an average with three decimals', /Average invoice can have at most two decimal places/.test(invoice.result), invoice.result.slice(0, 120));
+}
+
 // 4. Default results on every calculator tab show a number, not a validation error.
 for (const [page, tab] of [
   ['pages/tool-admin-cost.html', 'admin'], ['pages/tool-should-i-hire.html', 'hire'], ['pages/tool-break-even.html', 'breakeven'],
