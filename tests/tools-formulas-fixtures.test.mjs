@@ -4,6 +4,8 @@
 // same output, deep-equal, and every error case must keep its message.
 // The jobcost/* entries were re-recorded for #32: job-cost money is now whole cents per line
 // (as the service pricing tool) and the target price is rounded up to the cent.
+// The quote-record/save entry was re-recorded for #31: saved records now carry a history list of
+// earlier versions (empty for a first save).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

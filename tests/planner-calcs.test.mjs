@@ -377,6 +377,27 @@ test('customer response: pairing reports differences for bookings and staff hour
   assert.equal(pairs[1].v, -10);
 });
 
+test('customer response: opt-out, quiet-hours and Spam Act narrative is shown with every result', () => {
+  const r = P.customerResponse({ ...cust, enquiries: 10 });
+  const notes = r.notes.join(' ');
+  assert.match(notes, /opt-out/);
+  assert.match(notes, /quiet hours/);
+  assert.match(notes, /Spam Act 2003/);
+  assert.match(notes, /No AI benefit is assumed or guaranteed/);
+});
+
+test('customer response: extremes are accepted at the limit and refused above it', () => {
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000000 }).ok, true);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 1000001 }).ok, false);
+  assert.equal(P.customerResponse({ ...cust, enquiries: 10, followUps: 6 }).ok, false);
+});
+
+test('customer response: money is rounded to the cent once, with no float drift', () => {
+  // 3 completed bookings at A$19.99 less A$0.10 variable cost each = A$59.67; no consent, so no messages
+  const r = P.customerResponse({ ...cust, enquiries: 3, reachPhone: 100, consentPct: 0, qualifiedPct: 100, bookPct: 100, avgJobValue: 19.99, jobVariableCost: 0.1, costPerMessage: 0.1 });
+  assert.equal(r.summary[0].v, 59.67);
+});
+
 // ---- #41 upgrade configurator -----------------------------------------------
 const none = { assistant: false, agent: false, supercharged: false, scheduled: false, sorted: false, skilled: false, assistantBand: 'standard', agentBand: 'standard', hoursSavedPerWeek: 0, valuePerHour: 0 };
 

@@ -1024,14 +1024,14 @@
           "reference": "Q1-A",
           "version": 1,
           "savedAt": "2026-11-18T00:00:00.000Z",
-          "validDays": 14,
-          "business": "Biz",
-          "customer": "",
           "consentToStoreCustomer": false,
+          "business": "Biz",
           "service": "S",
           "scope": "",
           "exclusions": "",
           "terms": "",
+          "customer": "",
+          "validDays": 14,
           "taxMode": "exclusive",
           "taxRate": 10,
           "discountPct": 0,
@@ -1051,21 +1051,22 @@
               "quantity": 3,
               "unitPrice": 12.35
             }
-          ]
+          ],
+          "history": []
         }
       ],
       "saved": {
         "reference": "Q1-A",
         "version": 1,
         "savedAt": "2026-11-18T00:00:00.000Z",
-        "validDays": 14,
-        "business": "Biz",
-        "customer": "",
         "consentToStoreCustomer": false,
+        "business": "Biz",
         "service": "S",
         "scope": "",
         "exclusions": "",
         "terms": "",
+        "customer": "",
+        "validDays": 14,
         "taxMode": "exclusive",
         "taxRate": 10,
         "discountPct": 0,
@@ -1085,7 +1086,8 @@
             "quantity": 3,
             "unitPrice": 12.35
           }
-        ]
+        ],
+        "history": []
       },
       "history": 0
     }

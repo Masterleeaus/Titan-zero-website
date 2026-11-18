@@ -87,6 +87,15 @@ function run(page, { fields = {}, storage = {}, tab = '', submit = true } = {}) 
   check('three-decimal money refused', /at most two decimal places/.test(money.result), money.result.slice(0, 120));
 }
 
+// 3b. Live funnel and ageing forms (#105): the shared rules refuse one input on each page.
+// The values pass the browser's own min/max checks, so the engine is what refuses them.
+{
+  const leads = run('pages/tool-lead-conversion.html', { tab: 'leads', fields: { leads: 2000000 } });
+  check('lead conversion refuses a lead count above the engine limit', /Leads per month must be between 0 and 1000000/.test(leads.result), leads.result.slice(0, 120));
+  const invoice = run('pages/tool-invoice-collection.html', { tab: 'invoice', fields: { avg: 0.005 } });
+  check('invoice collection refuses an average with three decimals', /Average invoice can have at most two decimal places/.test(invoice.result), invoice.result.slice(0, 120));
+}
+
 // 4. Default results on every calculator tab show a number, not a validation error.
 for (const [page, tab] of [
   ['pages/tool-admin-cost.html', 'admin'], ['pages/tool-should-i-hire.html', 'hire'], ['pages/tool-break-even.html', 'breakeven'],
@@ -116,6 +125,77 @@ for (const [page, tab] of [
   const r = run('tools/free-tools/index.html', { submit: false });
   check('non-calculator page has no script errors', r.errors.length === 0, r.errors.join('; '));
   check('non-calculator page writes no profile', r.stored.length === 0, r.stored.join(','));
+}
+
+// 7. Checklist generator (#33): drafts persist across a reload, a corrupt draft falls back to the
+// template, the text download is local, and markup typed into a task stays plain text.
+function runChecklist(rawDraft = null) {
+  const page = 'pages/tool-checklist-generator.html';
+  const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/gi, ''), {
+    url: 'https://titanzero.io/tools/checklist-generator/',
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+  });
+  const { window } = dom;
+  window.print = () => {};
+  window.confirm = () => true;
+  window.alert = () => {};
+  window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
+  window.URL.createObjectURL = () => 'blob:checklist-test';
+  window.URL.revokeObjectURL = () => {};
+  if (rawDraft !== null) window.localStorage.setItem('titanChecklistDraftV1', rawDraft);
+  const errors = [];
+  for (const script of ['assets/site-data.js', 'assets/site.js', 'assets/tools-engine.js', 'assets/tools.js']) {
+    const tag = new RegExp('src="/' + script.replace(/[.]/g, '\\.') + '\\?');
+    if (!tag.test(html)) continue;
+    try { window.eval(fs.readFileSync(path.join(ROOT, script), 'utf8')); } catch (error) { errors.push(script + ': ' + error.message); }
+  }
+  return { window, doc: window.document, errors };
+}
+
+{
+  const r = runChecklist();
+  const select = r.doc.querySelector('[data-checklist-vertical]');
+  const values = [...select.options].map((o) => o.value);
+  check('checklist: eleven service types are offered, including painting and decorating', values.length === 11 && values.includes('painting-decorating'), values.join(','));
+  check('checklist: page loads without script errors', r.errors.length === 0, r.errors.join('; '));
+  check('checklist: export button is present', Boolean(r.doc.querySelector('[data-export-checklist]')));
+}
+
+{
+  const r = runChecklist();
+  const first = r.doc.querySelector('[data-generated-checklist] input[type="checkbox"]');
+  first.checked = true;
+  first.dispatchEvent(new r.window.Event('change', { bubbles: true }));
+  const again = runChecklist(r.window.localStorage.getItem('titanChecklistDraftV1'));
+  const restored = again.doc.querySelector('[data-generated-checklist] input[type="checkbox"]');
+  check('checklist: a tick survives a reload from the saved draft', restored.checked === true);
+  check('checklist: progress says one task is done after reload', /1 of \d+ tasks done/.test(again.doc.querySelector('[data-checklist-progress]').textContent));
+}
+
+{
+  const r = runChecklist('{not json');
+  const items = r.doc.querySelectorAll('[data-generated-checklist] li');
+  check('checklist: a corrupt draft falls back to the cleaning template without errors', items.length > 0 && r.errors.length === 0, r.errors.join('; '));
+}
+
+{
+  const r = runChecklist();
+  const input = r.doc.querySelector('[data-custom-checklist-task]');
+  input.value = '<img src=x onerror="alert(1)">';
+  r.doc.querySelector('[data-add-checklist-task]').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  const list = r.doc.querySelector('[data-generated-checklist]');
+  check('checklist: markup typed into a task is shown as text, not as an element', list.querySelector('img') === null && list.textContent.includes('<img src=x'));
+}
+
+{
+  const r = runChecklist();
+  let downloaded = null;
+  r.window.HTMLAnchorElement.prototype.click = function click() { downloaded = { name: this.download, href: this.href }; };
+  r.doc.querySelector('[data-export-checklist]').dispatchEvent(new r.window.Event('click', { bubbles: true }));
+  check('checklist: text download is named after the service type', downloaded !== null && downloaded.name === 'cleaning-checklist.txt', JSON.stringify(downloaded));
+  check('checklist: download is announced as made in this browser', /not uploaded/.test(r.doc.querySelector('[data-checklist-progress]').textContent));
 }
 
 if (failures.length) {

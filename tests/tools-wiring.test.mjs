@@ -17,7 +17,7 @@ test('wiring: the live controller calls the engine for break-even, validation an
   assert.match(source, /const engine=globalThis\.TitanToolsEngine;/);
   assert.match(source, /if\(!data\|\|!engine\)return;/, 'pages without the engine must not run the controller');
   assert.match(source, /engine\.calculators\.breakeven\(/);
-  assert.match(source, /engine\.validate\(active,values\)/);
+  assert.match(source, /engine\.validate\(active,Object\.fromEntries\(new FormData\(form\)\.entries\(\)\)\)/);
   assert.match(source, /engine\.migrateProfile\(/);
   assert.match(source, /schema:engine\.PROFILE_VERSION/);
   assert.match(source, /removeItem\(engine\.LEGACY_PROFILE_KEY\)/);
@@ -88,11 +88,27 @@ test('validation (#42): the six calculators with matching fields refuse invalid 
   }
 });
 
-test('leads and invoice: engine rules describe a single-rate model, so the controller skips them', () => {
-  assert.deepEqual(Object.keys(E.RULES.leads), ['leads', 'current', 'target', 'value']);
-  assert.deepEqual(Object.keys(E.RULES.invoice), ['invoices', 'avg', 'overdue', 'chase']);
-  assert.match(source, /base_contacted/, 'the live lead form uses funnel stages');
+test('leads and invoice (#105): engine rules describe the live funnel and ageing fields, and the controller applies them', () => {
+  const leadKeys = ['leads', 'value', 'contribPct', 'base_contacted', 'base_qualified', 'base_booked', 'base_completed',
+    'alt_contacted', 'alt_qualified', 'alt_booked', 'alt_completed'];
+  const invoiceKeys = ['invoices', 'avg', 'age_d0_30', 'age_d31_60', 'age_d61_90', 'age_d90',
+    'collect_d0_30', 'collect_d31_60', 'collect_d61_90', 'collect_d90', 'chase'];
+  assert.deepEqual(Object.keys(E.RULES.leads), leadKeys);
+  assert.deepEqual(Object.keys(E.RULES.invoice), invoiceKeys);
+  for (const key of [...leadKeys, ...invoiceKeys]) {
+    assert.match(source, new RegExp("\\['" + key + "',"), key + ' must be a live form field');
+  }
   assert.match(source, /Object\.keys\(rules\)\.every\(key=>key in values\)/);
+  assert.match(source, /engine\.validate\(active,Object\.fromEntries\(new FormData\(form\)\.entries\(\)\)\)/, 'blanks are validated as raw strings');
+});
+
+test('leads and invoice (#105): engine headline values match the live funnel and ageing calculators', () => {
+  const leadInput = { leads: 100, value: 450, contribPct: 100, base_contacted: 90, base_qualified: 50, base_booked: 60, base_completed: 80,
+    alt_contacted: 92, alt_qualified: 50, alt_booked: 62, alt_completed: 80 };
+  const invoiceInput = { invoices: 80, avg: 520, age_d0_30: 0, age_d31_60: 10, age_d61_90: 5, age_d90: 3,
+    collect_d0_30: 95, collect_d31_60: 80, collect_d61_90: 50, collect_d90: 20, chase: 7 };
+  assert.ok(Math.abs(E.calculators.leads(leadInput).metric - C.leadConversion(leadInput).revenueDelta) <= HALF_CENT);
+  assert.ok(Math.abs(E.calculators.invoice(invoiceInput).metric - C.invoiceCollection(invoiceInput).beyondTerms) <= HALF_CENT);
 });
 
 test('profile migration (#43): every assumption a live tool persists survives V2 to V3', () => {
