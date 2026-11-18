@@ -23,6 +23,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate static site, routes and safe deploy content
         run: python3 scripts/validate-release.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install tool test helpers into a temporary folder (not repository dependencies)
+        run: npm install --prefix "$RUNNER_TEMP/tools-deps" jsdom@24 puppeteer-core@23 --no-audit --no-fund
+      - name: Business tools release check (blocks deployment, #46)
+        env:
+          JSDOM_DIR: ${{ runner.temp }}/tools-deps
+          PUPPETEER_DIR: ${{ runner.temp }}/tools-deps
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/tools-release-check.mjs
       - name: Build immutable static site release
         run: |
           mkdir -p release

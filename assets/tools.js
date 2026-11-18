@@ -136,6 +136,8 @@ drawSummary();
 function showCalculatorError(resultElement,definition,message){
 resultElement.replaceChildren(textNode('p',definition?definition.title:'Calculator','eyebrow'),textNode('h2','Check your numbers'),textNode('p',message,'form-error'));
 resultElement.setAttribute('role','alert');
+resultElement.setAttribute('tabindex','-1');
+resultElement.focus();
 }
 function showCalculatorResult(resultElement,definition,outcome,values){
 resultElement.removeAttribute('role');
@@ -152,6 +154,8 @@ notes.append(textNode('li',`Industry context: ${currentIndustry().name}. ${curre
 resultElement.append(notes);
 const context={tool:definition.title,vertical:currentIndustry().name,business:profile.businessName,service:profile.serviceName,result:displayed+' — '+outcome.label,calculation:outcome.math};
 addHandoffButtons(resultElement,context);
+resultElement.setAttribute('tabindex','-1');
+resultElement.focus();
 }
 function initializeCalculator(root){
 setupContext(root);
@@ -344,7 +348,7 @@ const labour=[...roles.querySelectorAll('.quote-line-row')].map(row=>({hours:row
 const input={roles:labour,materials:f('materials').value,materialMarkupPct:f('materialMarkupPct').value,equipment:f('equipment').value,km:f('km').value,kmRate:f('kmRate').value,travel:f('travel').value,contingencyPct:f('contingencyPct').value,overhead:f('overhead').value,price:f('price').value,targetMarginPct:f('target').value};
 let c;
 try{c=calc.jobCostSheet(input);}
-catch(error){output.replaceChildren(textNode('p','Job-cost result','eyebrow'),textNode('p',error.message,'form-error'));return;}
+catch(error){output.replaceChildren(textNode('p','Job-cost result','eyebrow'),textNode('p',error.message,'form-error'));output.setAttribute('tabindex','-1');output.focus();return;}
 const businessName=f('business').value.trim();
 output.replaceChildren(textNode('p','Job-cost result','eyebrow'),textNode('h2',f('service').value.trim()||'Estimated job economics'));
 if(businessName)output.append(textNode('p',businessName));
@@ -359,6 +363,8 @@ send.addEventListener('click',()=>{try{const rec=calc.quoteTransferRecord(c,f('s
 output.append(send,sendStatus);
 const context={tool:'Job-cost sheet',vertical:currentIndustry().name,business:businessName,service:f('service').value.trim(),result:'Total cost '+money(c.totalCost)+'; price (ex GST) '+money(c.price)+'; margin '+(c.marginPct===null?'n/a':c.marginPct.toFixed(1)+'%')+'.',calculation:`Labour ${money(c.labour)}; direct costs ${money(c.directCost)}; contingency ${money(c.contingency)}; overhead ${money(c.overhead)}.`};
 addHandoffButtons(output,context);
+output.setAttribute('tabindex','-1');
+output.focus();
 });
 }
 const TEMPLATE_REVISION=1;
